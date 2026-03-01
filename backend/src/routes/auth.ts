@@ -41,7 +41,13 @@ router.get('/users', authenticate, (req: AuthRequest, res: Response) => {
   if (!['management', 'sales', 'production', 'installation'].includes(req.user?.role || ''))
     return res.status(403).json({ error: 'Forbidden' });
   if (req.user?.role === 'management') {
-    const users = db.prepare('SELECT id, name, email, role, active FROM users ORDER BY name').all();
+    const users = db.prepare(`
+      SELECT u.id, u.name, u.email, u.role, u.active,
+             e.rfid_tag, e.id AS employee_id
+      FROM users u
+      LEFT JOIN employees e ON e.user_id = u.id AND e.active = 1
+      ORDER BY u.name
+    `).all();
     return res.json(users);
   }
   const users = db.prepare('SELECT id, name, email, role FROM users WHERE active = 1 ORDER BY name').all();
@@ -96,6 +102,44 @@ router.patch('/users/:id/reset-password', authenticate, (req: AuthRequest, res: 
   const hash = bcrypt.hashSync(newPassword, 10);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.params.id);
   res.json({ success: true });
+});
+
+// Assign / update RFID tag for a user (Management only)
+// Auto-creates an employee record linked to the user if one doesn't exist yet
+router.patch('/users/:id/rfid', authenticate, (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'management')
+    return res.status(403).json({ error: 'Management only' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as any;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const tag = req.body.rfid_tag ? String(req.body.rfid_tag).trim().toUpperCase() : null;
+
+  // Check if tag is already taken by another employee
+  if (tag) {
+    const conflict = db.prepare(
+      `SELECT e.id FROM employees e WHERE e.rfid_tag = ? AND (e.user_id != ? OR e.user_id IS NULL)`
+    ).get(tag, req.params.id) as any;
+    if (conflict) return res.status(409).json({ error: 'RFID tag already assigned to another employee' });
+  }
+
+  const existing = db.prepare('SELECT * FROM employees WHERE user_id = ?').get(req.params.id) as any;
+  const now = nowIST();
+
+  if (existing) {
+    db.prepare('UPDATE employees SET rfid_tag = ?, updated_at = ? WHERE id = ?')
+      .run(tag, now, existing.id);
+  } else {
+    // Auto-create employee record linked to this user
+    const count = (db.prepare('SELECT COUNT(*) as cnt FROM employees').get() as any).cnt;
+    const emp_code = `EMP${String(count + 1).padStart(3, '0')}`;
+    const emp_id = uuidv4();
+    db.prepare(
+      `INSERT INTO employees (id, employee_code, name, department, rfid_tag, user_id, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+    ).run(emp_id, emp_code, user.name, null, tag, req.params.id, now, now);
+  }
+
+  res.json({ success: true, rfid_tag: tag });
 });
 
 // Change own password (any authenticated user)

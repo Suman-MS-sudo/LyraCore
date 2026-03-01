@@ -10,6 +10,8 @@ interface User {
   email: string;
   role: string;
   active: number;
+  rfid_tag?: string | null;
+  employee_id?: string | null;
 }
 
 const ROLES = ['management', 'sales', 'production', 'installation'];
@@ -241,6 +243,73 @@ function ChangeOwnPasswordModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ──────────────── RFID Modal ──────────────── */
+function RfidModal({ user, onClose, onSaved }: { user: User; onClose: () => void; onSaved: () => void }) {
+  const [tag, setTag] = useState(user.rfid_tag ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.patch(`/auth/users/${user.id}/rfid`, { rfid_tag: tag.trim().toUpperCase() || null });
+      toast.success(tag.trim() ? 'RFID tag updated' : 'RFID tag cleared');
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error ?? 'Failed to save RFID tag');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open title={`RFID Card — ${user.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Scan or type the RFID card UID that belongs to this user. Leave blank to remove the assignment.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">RFID Card UID</label>
+          <input
+            className="form-input font-mono tracking-widest uppercase"
+            value={tag}
+            onChange={e => setTag(e.target.value.toUpperCase())}
+            placeholder="e.g. A1B2C3D4"
+            maxLength={32}
+            autoFocus
+          />
+          {user.rfid_tag && (
+            <p className="mt-1 text-xs text-gray-400">Current: <span className="font-mono text-blue-600">{user.rfid_tag}</span></p>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          {user.rfid_tag && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  await api.patch(`/auth/users/${user.id}/rfid`, { rfid_tag: null });
+                  toast.success('RFID tag cleared');
+                  onSaved();
+                  onClose();
+                } catch (err: any) {
+                  toast.error(err.response?.data?.error ?? 'Failed');
+                } finally { setSaving(false); }
+              }}
+            >Clear</button>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 /* ──────────────── Main Settings Page ──────────────── */
 export default function Settings() {
   const { user: me } = useAuth();
@@ -253,6 +322,7 @@ export default function Settings() {
   const [changeOwnPw, setChangeOwnPw] = useState(false);
   const [confirming, setConfirming] = useState<{ id: string; action: 'deactivate' | 'reactivate'; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [rfidTarget, setRfidTarget] = useState<User | null>(null);
 
   function fetchUsers() {
     setLoading(true);
@@ -373,6 +443,15 @@ export default function Settings() {
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {u.id !== me?.id && (
                           <>
+                            <button
+                              className={`btn btn-sm ${u.rfid_tag ? 'btn-secondary text-blue-600' : 'btn-ghost text-gray-500'}`}
+                              title={u.rfid_tag ? `RFID: ${u.rfid_tag}` : 'Assign RFID card'}
+                              onClick={() => setRfidTarget(u)}
+                            >
+                              {u.rfid_tag
+                                ? <span className="font-mono text-xs">🏷 {u.rfid_tag}</span>
+                                : <span className="text-xs">+ RFID</span>}
+                            </button>
                             <button className="btn-ghost btn btn-sm text-blue-600" onClick={() => setEditTarget(u)}>Edit</button>
                             <button className="btn-ghost btn btn-sm text-amber-600" onClick={() => setResetTarget(u)}>Reset PW</button>
                             <button
@@ -397,6 +476,7 @@ export default function Settings() {
       {editTarget  && <EditUserModal      user={editTarget}  onClose={() => setEditTarget(null)}   onSaved={fetchUsers} />}
       {resetTarget && <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />}
       {changeOwnPw && <ChangeOwnPasswordModal onClose={() => setChangeOwnPw(false)} />}
+      {rfidTarget  && <RfidModal user={rfidTarget} onClose={() => setRfidTarget(null)} onSaved={fetchUsers} />}
 
       {/* Confirm delete */}
       {deleteTarget && (
