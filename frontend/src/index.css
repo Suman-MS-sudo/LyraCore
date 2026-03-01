@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-gray-200; }
+  html { -webkit-tap-highlight-color: transparent; }
+  body { @apply bg-slate-50 text-gray-900 text-sm antialiased; }
+  input, select, textarea, button { @apply touch-manipulation; }
+}
+
+@layer components {
+  /* ── Buttons ── */
+  .btn { @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 select-none; }
+  .btn-primary   { @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-blue-200 hover:shadow-md; }
+  .btn-secondary { @apply btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:ring-gray-400 shadow-sm; }
+  .btn-success   { @apply btn bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 shadow-sm; }
+  .btn-danger    { @apply btn bg-red-500 text-white hover:bg-red-600 focus:ring-red-400 shadow-sm; }
+  .btn-warning   { @apply btn bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400 shadow-sm; }
+  .btn-ghost     { @apply btn text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-300; }
+  .btn-sm  { @apply px-2.5 py-1 text-xs rounded-lg; }
+  .btn-lg  { @apply px-5 py-2.5 text-base; }
+
+  /* ── Cards ── */
+  .card        { @apply bg-white rounded-2xl border border-gray-100 shadow-sm; }
+  .card-header { @apply px-4 py-3.5 border-b border-gray-50 flex items-center justify-between; }
+  .card-body   { @apply p-4; }
+
+  /* ── Forms ── */
+  .form-label    { @apply block text-xs font-semibold text-gray-600 mb-1.5 tracking-wide uppercase; }
+  .form-input    { @apply w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition-all placeholder:text-gray-400; }
+  .form-select   { @apply form-input; }
+  .form-textarea { @apply form-input resize-none; }
+  .form-error    { @apply text-xs text-red-500 mt-1 flex items-center gap-1; }
+
+  /* ── Table ── */
+  .table-th { @apply px-3 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-widest bg-slate-50/80; }
+  .table-td { @apply px-3 py-3 text-sm text-gray-700; }
+  .table-tr { @apply border-b border-gray-50 hover:bg-blue-50/50 transition-colors cursor-pointer; }
+
+  /* ── Stat cards ── */
+  .stat-card  { @apply card p-4; }
+  .stat-value { @apply text-2xl font-bold text-gray-900 tracking-tight; }
+  .stat-label { @apply text-xs font-medium text-gray-400 mt-0.5 uppercase tracking-wide; }
+
+  /* ── Badges ── */
+  .badge        { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold; }
+  .badge-blue   { @apply badge bg-blue-100 text-blue-700; }
+  .badge-green  { @apply badge bg-emerald-100 text-emerald-700; }
+  .badge-yellow { @apply badge bg-amber-100 text-amber-700; }
+  .badge-red    { @apply badge bg-red-100 text-red-600; }
+  .badge-gray   { @apply badge bg-gray-100 text-gray-600; }
+  .badge-purple { @apply badge bg-purple-100 text-purple-700; }
+  .badge-orange { @apply badge bg-orange-100 text-orange-700; }
+
+  /* ── Mobile lead cards ── */
+  .lead-card { @apply card p-4 active:scale-[0.99] transition-transform; }
+
+  /* ── Page header ── */
+  .page-header { @apply flex items-center justify-between mb-5; }
+  .page-title  { @apply text-xl font-bold text-gray-900 tracking-tight; }
+}
+
+/* ── Smooth scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* ── Animations ── */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-slide-in-left { animation: slideInLeft 0.22s cubic-bezier(0.4,0,0.2,1); }
+.animate-fade-in       { animation: fadeIn 0.18s ease; }
+.animate-slide-up      { animation: slideUp 0.22s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── Safe area padding for mobile notches ── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top    { padding-top: env(safe-area-inset-top, 0px); }
