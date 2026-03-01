@@ -318,17 +318,26 @@ export default function SayHi() {
   const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
+      let payload: Partial<Contact>[] = [];
       try {
         const wb = XLSX.read(e.target?.result, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
         if (!raw.length) { toast.error('Excel is empty'); return; }
-        const payload = raw.map(r => mapRow(r));
+        payload = raw.map(r => mapRow(r));
+      } catch (err: any) {
+        toast.error('Failed to parse Excel file: ' + (err?.message || 'unknown error'));
+        return;
+      }
+      try {
         const { data } = await api.post('/sayhi/contacts/bulk', payload);
         if (!data.length) { toast('No new contacts — all entries already exist'); return; }
         setContacts(prev => [...prev, ...data.map((c: Contact) => ({ ...c, emailStatus: 'idle' as const, waStatus: 'idle' as const }))]);
         toast.success(`Added ${data.length} new contact${data.length !== 1 ? 's' : ''} (duplicates skipped)`);
-      } catch { toast.error('Failed to read Excel file'); }
+      } catch (err: any) {
+        const msg = err?.response?.data?.error || err?.message || 'Server error';
+        toast.error('Upload failed: ' + msg);
+      }
     };
     reader.readAsBinaryString(file);
   };
