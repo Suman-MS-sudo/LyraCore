@@ -260,7 +260,7 @@ export function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS attendance_logs (
       id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,
-      scan_type TEXT NOT NULL CHECK(scan_type IN ('IN', 'OUT')),
+      scan_type TEXT NOT NULL,
       scanned_at TEXT NOT NULL,
       date TEXT NOT NULL,
       device_id TEXT,
@@ -357,15 +357,37 @@ export function initializeDatabase() {
     created_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes'))
   )`);
+  // attendance_logs — no CHECK constraint so FAILED_LOGIN / FAILED_OUT can be inserted
   _db.run(`CREATE TABLE IF NOT EXISTS attendance_logs (
     id TEXT PRIMARY KEY,
     employee_id TEXT NOT NULL,
-    scan_type TEXT NOT NULL CHECK(scan_type IN ('IN', 'OUT')),
+    scan_type TEXT NOT NULL,
     scanned_at TEXT NOT NULL,
     date TEXT NOT NULL,
     device_id TEXT,
     notes TEXT
   )`);
+  // Migration: if old table had CHECK constraint (IN/OUT only), recreate without it
+  try {
+    const tbl = (_db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='attendance_logs'`, []) as any)?.sql || '';
+    if (tbl.includes("CHECK(scan_type IN ('IN', 'OUT'))")) {
+      _db.exec(`
+        ALTER TABLE attendance_logs RENAME TO attendance_logs_old;
+        CREATE TABLE attendance_logs (
+          id TEXT PRIMARY KEY,
+          employee_id TEXT NOT NULL,
+          scan_type TEXT NOT NULL,
+          scanned_at TEXT NOT NULL,
+          date TEXT NOT NULL,
+          device_id TEXT,
+          notes TEXT
+        );
+        INSERT INTO attendance_logs SELECT * FROM attendance_logs_old;
+        DROP TABLE attendance_logs_old;
+      `);
+      console.log('Migrated: attendance_logs CHECK constraint removed.');
+    }
+  } catch (e) { console.log('attendance_logs migration skipped:', e); }
 
   // Migration: create packing table if it doesn't exist (for existing DBs)
   _db.run(`CREATE TABLE IF NOT EXISTS packing (
