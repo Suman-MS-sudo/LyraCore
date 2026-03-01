@@ -773,15 +773,15 @@ export default function SayHi() {
                       </button>
                     </td>
                     <td className="p-3 text-gray-400 text-xs">{idx + 1}</td>
-                    <td className="p-3 font-medium text-gray-900 max-w-32 truncate">{c.name || <span className="text-gray-300">—</span>}</td>
-                    <td className="p-3 text-gray-600 max-w-32 truncate">
+                    <td className="p-3 font-medium text-gray-900 min-w-[8rem] break-words whitespace-normal">{c.name || <span className="text-gray-300">—</span>}</td>
+                    <td className="p-3 text-gray-600 min-w-[8rem] break-words whitespace-normal">
                       {c.organization || <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="p-3 text-gray-500 max-w-28 truncate">{c.place || <span className="text-gray-300">—</span>}</td>
-                    <td className="p-3 text-gray-600">{c.contact || <span className="text-gray-300">—</span>}</td>
-                    <td className="p-3 text-gray-600 max-w-36 truncate">{c.email ? <span title={c.email}>{c.email}{c.emails_sent > 0 && <span className="ml-1 text-xs text-green-600 font-medium">✓{c.emails_sent}</span>}</span> : <span className="text-gray-300">—</span>}</td>
-                    <td className="p-3 max-w-28 truncate">
-                      {c.website ? <a href={c.website.startsWith('http') ? c.website : `https://${c.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{c.website}</a> : <span className="text-gray-300">—</span>}
+                    <td className="p-3 text-gray-500 min-w-[7rem] break-words whitespace-normal">{c.place || <span className="text-gray-300">—</span>}</td>
+                    <td className="p-3 text-gray-600 whitespace-nowrap">{c.contact || <span className="text-gray-300">—</span>}</td>
+                    <td className="p-3 text-gray-600 min-w-[9rem] break-all">{c.email ? <span title={c.email}>{c.email}{c.emails_sent > 0 && <span className="ml-1 text-xs text-green-600 font-medium">✓{c.emails_sent}</span>}</span> : <span className="text-gray-300">—</span>}</td>
+                    <td className="p-3 min-w-[5rem]">
+                      {c.website ? <a href={c.website.startsWith('http') ? c.website : `https://${c.website}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-500 hover:text-blue-700 hover:underline">Visit</a> : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="p-3">
                       {c.map
