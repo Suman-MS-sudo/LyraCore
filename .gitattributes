@@ -1,0 +1,8 @@
+# Ensure shell scripts always use LF on checkout (required for Linux)
+*.sh text eol=lf
+
+# Windows batch files use CRLF
+*.bat text eol=crlf
+
+# Default: auto-detect
+* text=auto

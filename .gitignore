@@ -20,6 +20,8 @@ uploads/qc_photos/
 .env
 .env.local
 .env.*.local
+# but track the example
+!.env.example
 
 # Logs
 logs/
