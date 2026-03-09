@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Users, UserPlus, Clock, CalendarDays, ChevronDown,
   CheckCircle2, XCircle, Edit2, Trash2, Wifi, WifiOff,
-  BarChart3, Download, RefreshCw, Tag
+  BarChart3, Download, RefreshCw, Tag, PlusCircle
 } from 'lucide-react';
 import api from '../../utils/api';
 import Modal from '../../components/Modal';
@@ -198,6 +198,152 @@ function EmployeeModal({
   );
 }
 
+// ── Log Entry Modal ───────────────────────────────────────────────────────────
+
+interface LogForm { employee_id: string; scan_type: 'IN' | 'OUT'; date: string; time: string; }
+
+function LogModal({
+  isOpen, onClose, onSaved, initial, historyDate
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  initial?: AttendanceLog | null;
+  historyDate: string;
+}) {
+  const [form, setForm] = useState<LogForm>({ employee_id: '', scan_type: 'IN', date: historyDate, time: '09:00' });
+  const [empList, setEmpList] = useState<Employee[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initial) {
+      setForm({
+        employee_id: initial.employee_id,
+        scan_type: (initial.scan_type === 'IN' || initial.scan_type === 'OUT') ? initial.scan_type : 'IN',
+        date: initial.date,
+        time: initial.scanned_at.substring(11, 16),
+      });
+    } else {
+      setForm({ employee_id: '', scan_type: 'IN', date: historyDate, time: '09:00' });
+      api.get('/attendance/employees').then(r => setEmpList(r.data)).catch(() => {});
+    }
+  }, [isOpen, initial, historyDate]);
+
+  const save = async () => {
+    if (!initial && !form.employee_id) { toast.error('Select an employee'); return; }
+    if (!form.date || !form.time) { toast.error('Date and time are required'); return; }
+    setSaving(true);
+    try {
+      if (initial) {
+        await api.put(`/attendance/logs/${initial.id}`, {
+          scan_type: form.scan_type,
+          date: form.date,
+          time: form.time,
+        });
+        toast.success('Entry updated');
+      } else {
+        await api.post('/attendance/logs', {
+          employee_id: form.employee_id,
+          scan_type: form.scan_type,
+          date: form.date,
+          time: form.time,
+        });
+        toast.success('Entry added');
+      }
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={isOpen} onClose={onClose} title={initial ? 'Edit Attendance Entry' : 'Add Attendance Entry'}>
+      <div className="space-y-4">
+        {/* Employee */}
+        {initial ? (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
+            <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
+              {initial.employee_name} <span className="text-gray-400">({initial.employee_code})</span>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Employee *</label>
+            <select
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={form.employee_id}
+              onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
+            >
+              <option value="">Select employee…</option>
+              {empList.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name} ({emp.employee_code})</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Date + Time */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date *</label>
+            <input
+              type="date"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={form.date}
+              onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Time (IST) *</label>
+            <input
+              type="time"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={form.time}
+              onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        {/* Scan Type */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-2">Type *</label>
+          <div className="flex gap-4">
+            {(['IN', 'OUT'] as const).map(t => (
+              <label key={t} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="scan_type_log"
+                  value={t}
+                  checked={form.scan_type === t}
+                  onChange={() => setForm(f => ({ ...f, scan_type: t }))}
+                  className="accent-blue-600"
+                />
+                <span className={`text-sm font-semibold ${ t === 'IN' ? 'text-green-700' : 'text-amber-600' }`}>{t}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : initial ? 'Save Changes' : 'Add Entry'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 type Tab = 'today' | 'history' | 'employees' | 'report';
@@ -219,6 +365,10 @@ export default function Attendance() {
   const [empLoading, setEmpLoading] = useState(false);
   const [empModal, setEmpModal] = useState(false);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
+
+  // Log editing
+  const [logModal, setLogModal] = useState(false);
+  const [editLog, setEditLog] = useState<AttendanceLog | null>(null);
 
   // Report
   const [reportMonth, setReportMonth] = useState(new Date().toISOString().substring(0, 7));
@@ -285,6 +435,17 @@ export default function Attendance() {
     const id = setInterval(fetchToday, 30_000);
     return () => clearInterval(id);
   }, [tab, fetchToday]);
+
+  // ── Delete / edit log entries ─────────────────────────────────────────────
+
+  const deleteLog = async (log: AttendanceLog) => {
+    if (!window.confirm(`Delete ${log.scan_type} entry for ${log.employee_name} at ${fmtTime(log.scanned_at)}?`)) return;
+    try {
+      await api.delete(`/attendance/logs/${log.id}`);
+      toast.success('Entry deleted');
+      fetchLogs();
+    } catch { toast.error('Failed to delete'); }
+  };
 
   // ── Delete employee ──────────────────────────────────────────────────────────
 
@@ -439,14 +600,22 @@ export default function Attendance() {
       {/* ── HISTORY ─────────────────────────────────────────────────────────────── */}
       {tab === 'history' && (
         <div>
-          <div className="flex items-center gap-3 mb-5">
-            <input
-              type="date"
-              value={historyDate}
-              onChange={e => setHistoryDate(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-500">{logs.length} scan{logs.length !== 1 ? 's' : ''}</span>
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={historyDate}
+                onChange={e => setHistoryDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-500">{logs.length} scan{logs.length !== 1 ? 's' : ''}</span>
+            </div>
+            <button
+              onClick={() => { setEditLog(null); setLogModal(true); }}
+              className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              <PlusCircle size={15} /> Add Entry
+            </button>
           </div>
 
           {logsLoading ? (
@@ -456,7 +625,7 @@ export default function Attendance() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Time', 'Employee', 'Code', 'Department', 'Type', 'Device'].map(h => (
+                    {['Time', 'Employee', 'Code', 'Department', 'Type', 'Device', 'Actions'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -472,18 +641,38 @@ export default function Attendance() {
                         <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                           log.scan_type === 'IN'
                             ? 'bg-green-100 text-green-700'
-                            : 'bg-amber-100 text-amber-700'
+                            : log.scan_type === 'OUT'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-red-100 text-red-600'
                         }`}>
                           {log.scan_type === 'IN' ? <Wifi size={10} /> : <WifiOff size={10} />}
                           {log.scan_type}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{log.device_id ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setEditLog(log); setLogModal(true); }}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => deleteLog(log)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {logs.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center py-10 text-gray-400">
+                      <td colSpan={7} className="text-center py-10 text-gray-400">
                         No scans recorded for this date
                       </td>
                     </tr>
@@ -650,6 +839,15 @@ export default function Attendance() {
         onClose={() => setEmpModal(false)}
         onSaved={() => { fetchEmployees(); fetchToday(); }}
         initial={editEmp}
+      />
+
+      {/* Log Entry Modal */}
+      <LogModal
+        isOpen={logModal}
+        onClose={() => setLogModal(false)}
+        onSaved={fetchLogs}
+        initial={editLog}
+        historyDate={historyDate}
       />
     </div>
   );

@@ -290,4 +290,78 @@ router.get('/report', authenticate, (req: AuthRequest, res: Response) => {
   res.json({ month, report: rows });
 });
 
+// ─── MANUAL LOG CRUD ──────────────────────────────────────────────────────────
+
+// POST /attendance/logs – manually add an attendance entry
+router.post('/logs', authenticate, (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'management')
+    return res.status(403).json({ error: 'Management only' });
+
+  const { employee_id, scan_type, date, time } = req.body;
+  if (!employee_id || !scan_type || !date || !time)
+    return res.status(400).json({ error: 'employee_id, scan_type, date, and time are required' });
+  if (!['IN', 'OUT'].includes(scan_type))
+    return res.status(400).json({ error: 'scan_type must be IN or OUT' });
+
+  const emp = db.prepare('SELECT * FROM employees WHERE id = ? AND active = 1').get(employee_id) as any;
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+
+  const scanned_at = `${date}T${time}:00+05:30`;
+  const id = uuidv4();
+  db.prepare(
+    `INSERT INTO attendance_logs (id, employee_id, scan_type, scanned_at, date, device_id, notes)
+     VALUES (?, ?, ?, ?, ?, NULL, 'Manual entry')`
+  ).run(id, employee_id, scan_type, scanned_at, date);
+
+  const log = db.prepare(
+    `SELECT a.*, e.name AS employee_name, e.employee_code, e.department
+     FROM attendance_logs a LEFT JOIN employees e ON a.employee_id = e.id
+     WHERE a.id = ?`
+  ).get(id);
+
+  res.status(201).json(log);
+});
+
+// PUT /attendance/logs/:id – edit an attendance log entry
+router.put('/logs/:id', authenticate, (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'management')
+    return res.status(403).json({ error: 'Management only' });
+
+  const log = db.prepare('SELECT * FROM attendance_logs WHERE id = ?').get(req.params.id) as any;
+  if (!log) return res.status(404).json({ error: 'Log entry not found' });
+
+  const { scan_type, date, time } = req.body;
+  if (scan_type && !['IN', 'OUT'].includes(scan_type))
+    return res.status(400).json({ error: 'scan_type must be IN or OUT' });
+
+  const newScanType = scan_type ?? log.scan_type;
+  const newDate     = date ?? log.date;
+  const newTime     = time ?? log.scanned_at.substring(11, 16);
+  const scanned_at  = `${newDate}T${newTime}:00+05:30`;
+
+  db.prepare(
+    `UPDATE attendance_logs SET scan_type=?, scanned_at=?, date=? WHERE id=?`
+  ).run(newScanType, scanned_at, newDate, req.params.id);
+
+  const updated = db.prepare(
+    `SELECT a.*, e.name AS employee_name, e.employee_code, e.department
+     FROM attendance_logs a LEFT JOIN employees e ON a.employee_id = e.id
+     WHERE a.id = ?`
+  ).get(req.params.id);
+
+  res.json(updated);
+});
+
+// DELETE /attendance/logs/:id – delete an attendance log entry
+router.delete('/logs/:id', authenticate, (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'management')
+    return res.status(403).json({ error: 'Management only' });
+
+  const log = db.prepare('SELECT id FROM attendance_logs WHERE id = ?').get(req.params.id) as any;
+  if (!log) return res.status(404).json({ error: 'Log entry not found' });
+
+  db.prepare('DELETE FROM attendance_logs WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 export default router;

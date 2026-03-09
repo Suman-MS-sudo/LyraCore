@@ -87,6 +87,17 @@ router.delete('/contacts/all', (_req: AuthRequest, res: Response) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/sayhi/contacts/bulk  – body: { ids: string[] }
+router.delete('/contacts/bulk', (req: AuthRequest, res: Response) => {
+  const { ids } = req.body as { ids?: string[] };
+  if (!Array.isArray(ids) || ids.length === 0)
+    return res.status(400).json({ error: 'ids array required' });
+  for (const id of ids) {
+    db.prepare('DELETE FROM sayhi_contacts WHERE id = ?').run(id);
+  }
+  res.json({ ok: true, deleted: ids.length });
+});
+
 // DELETE /api/sayhi/contacts/:id
 router.delete('/contacts/:id', (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM sayhi_contacts WHERE id=?').run(req.params.id);

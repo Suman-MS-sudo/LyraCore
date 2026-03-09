@@ -514,6 +514,18 @@ export default function SayHi() {
     } catch { toast.error('Failed to delete'); }
   };
 
+  const bulkDelete = async () => {
+    const ids = Array.from(selected);
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} selected contact${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    try {
+      await api.delete('/sayhi/contacts/bulk', { data: { ids } });
+      setContacts(prev => prev.filter(c => !selected.has(c.id)));
+      setSelected(new Set());
+      toast.success(`Deleted ${ids.length} contact${ids.length !== 1 ? 's' : ''}`);
+    } catch { toast.error('Failed to delete contacts'); }
+  };
+
   /* ─── Drag & drop ─────────────────────────────────── */
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -645,6 +657,11 @@ export default function SayHi() {
                 className="btn btn-secondary flex items-center gap-1 text-xs py-1.5 !text-green-700 !border-green-300 hover:!bg-green-50"
                 title={!activeWaTpl ? 'Choose a WhatsApp template first' : ''}>
                 <MessageCircle size={13}/> Bulk WhatsApp
+              </button>
+              <button onClick={bulkDelete}
+                className="btn btn-secondary flex items-center gap-1 text-xs py-1.5 !text-red-600 !border-red-300 hover:!bg-red-50"
+                title="Delete selected contacts">
+                <Trash2 size={13}/> Delete
               </button>
             </div>
           )}
