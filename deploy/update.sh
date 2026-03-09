@@ -11,6 +11,9 @@ APP_DIR="/var/www/lyracore"
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
+# Limit Node heap to avoid OOM on low-RAM servers (e2-micro)
+export NODE_OPTIONS="--max-old-space-size=512"
+
 echo ">>> Pulling latest code..."
 cd "$APP_DIR"
 git pull origin main

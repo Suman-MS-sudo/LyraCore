@@ -478,10 +478,10 @@ export default function Attendance() {
 
   // ── Today stats ──────────────────────────────────────────────────────────────
 
-  const total     = todayData?.employees.length ?? 0;
-  const present   = todayData?.employees.filter(e => e.status !== null).length ?? 0;
+  const total       = todayData?.employees.length ?? 0;
+  const present     = todayData?.employees.filter(e => e.clock_in !== null).length ?? 0;
   const currentlyIn = todayData?.employees.filter(e => e.status === 'IN').length ?? 0;
-  const absent    = total - present;
+  const absent      = total - present;
 
   // ── Render ────────────────────────────────────────────────────────────────────
 

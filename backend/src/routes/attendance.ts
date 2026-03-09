@@ -220,9 +220,11 @@ router.get('/today', authenticate, (req: AuthRequest, res: Response) => {
     `SELECT e.id, e.employee_code, e.name, e.department, e.designation,
        (SELECT scan_type FROM attendance_logs
         WHERE employee_id = e.id AND date = ?
+        AND scan_type IN ('IN','OUT')
         ORDER BY scanned_at DESC LIMIT 1) AS status,
        (SELECT scanned_at FROM attendance_logs
         WHERE employee_id = e.id AND date = ?
+        AND scan_type IN ('IN','OUT')
         ORDER BY scanned_at DESC LIMIT 1) AS last_scan_at,
        (SELECT scanned_at FROM attendance_logs
         WHERE employee_id = e.id AND date = ? AND scan_type = 'IN'
