@@ -266,7 +266,34 @@ export function initializeDatabase() {
       device_id TEXT,
       notes TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS email_campaigns (
+      id TEXT PRIMARY KEY,
+      subject TEXT NOT NULL,
+      body_html TEXT NOT NULL,
+      recipients TEXT NOT NULL,
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS email_opens (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL,
+      recipient_email TEXT NOT NULL,
+      opened_at TEXT NOT NULL,
+      ip TEXT,
+      user_agent TEXT,
+      FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id)
+    );
   `);
+
+  // Migration: clean up email_opens with IST-format timestamps (YYYY-MM-DDTHH:MM:SS+05:30)
+  // These compare lexicographically > any UTC datetime string, permanently blocking the 1-hour
+  // deduplication check and suppressing all subsequent opens for those records.
+  try {
+    _db.run("DELETE FROM email_opens WHERE opened_at LIKE '%+05:30'");
+  } catch { /* table may not exist yet */ }
 
   // Migration: add format column to sayhi_templates
   try {

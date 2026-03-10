@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, Package, Factory,
-  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays
+  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays, Mail
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -14,6 +14,7 @@ const SALES_NAV: NavItem[] = [
   { label: 'Customers', path: '/sales/customers', icon: <Building2 size={16} /> },
   { label: 'Products',  path: '/sales/products',  icon: <Package size={16} /> },
   { label: 'Say Hi',    path: '/sales/sayhi',     icon: <Hand size={16} /> },
+  { label: 'Campaigns',  path: '/sales/email',     icon: <Mail size={16} /> },
 ];
 
 const PRODUCTION_NAV: NavItem[] = [
@@ -30,6 +31,7 @@ const MANAGEMENT_NAV: NavItem[] = [
   { label: 'Say Hi',       path: '/management/sayhi',           icon: <Hand size={16} /> },
   { label: 'Orders',       path: '/management/orders',          icon: <Factory size={16} /> },
   { label: 'Installation', path: '/management/installation',    icon: <Wrench size={16} /> },
+  { label: 'Campaigns',    path: '/management/email',            icon: <Mail size={16} /> },
   { label: 'Attendance',   path: '/management/attendance',       icon: <CalendarDays size={16} /> },
   { label: 'Audit Logs',   path: '/management/audit',           icon: <ClipboardList size={16} /> },
   { label: 'Settings',     path: '/management/settings',        icon: <Settings size={16} /> },

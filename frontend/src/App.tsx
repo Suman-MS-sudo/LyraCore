@@ -11,6 +11,7 @@ import NewLead from './pages/sales/NewLead';
 import Customers from './pages/sales/Customers';
 import Products from './pages/sales/Products';
 import SayHi from './pages/sales/SayHi';
+import EmailComposer from './pages/sales/EmailComposer';
 
 // Production
 import ProductionDashboard from './pages/production/Dashboard';
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="customers" element={<Customers />} />
           <Route path="products" element={<Products />} />
           <Route path="sayhi" element={<SayHi />} />
+          <Route path="email" element={<EmailComposer />} />
         </Route>
 
         {/* Production Routes */}
@@ -82,6 +84,7 @@ export default function App() {
           <Route path="customers" element={<Customers />} />
           <Route path="products" element={<Products />} />
           <Route path="sayhi" element={<SayHi />} />
+          <Route path="email" element={<EmailComposer />} />
           <Route path="orders" element={<OrdersList />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="installation" element={<InstallationList />} />

@@ -89,6 +89,7 @@ export default function LeadDetail() {
   const [quotationForm, setQuotationForm] = useState({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' });
   const [quotationFile, setQuotationFile] = useState<File | null>(null);
   const [quotationStep, setQuotationStep] = useState<'form' | 'review'>('form');
+  const [previewPiNumber, setPreviewPiNumber] = useState<string>('');
   const [companyInfo, setCompanyInfo] = useState<any>(null);
   const [productionForm, setProductionForm] = useState({ expected_delivery_date: '', priority: 'NORMAL', notes: '' });
   const [reqForm, setReqForm] = useState<any>({});
@@ -299,9 +300,9 @@ export default function LeadDetail() {
   const handleDownloadPdf = async () => {
     if (!piPreviewRef.current) return;
     setDownloadingPdf(true);
-    const piNumber = lead?.quotations?.length
-      ? `PI-${String(lead.quotations.length).padStart(4, '0')}`
-      : 'Quotation';
+    const piNumber = previewPiNumber || (lead?.quotations?.length
+      ? `Q-${String(lead.quotations.length + 1).padStart(4, '0')}`
+      : 'Quotation');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opt: any = {
       margin:      [8, 8, 8, 8],
@@ -977,6 +978,21 @@ export default function LeadDetail() {
                       {!q.payment_confirmed && canEdit && (
                         <button onClick={() => handleConfirmPayment(q)} className="btn btn-success btn-sm">✓ Confirm Payment</button>
                       )}
+                      {!q.payment_confirmed && canEdit && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Delete ${q.pi_number}? This cannot be undone.`)) return;
+                            try {
+                              await api.delete(`/quotations/${q.id}`);
+                              toast.success(`${q.pi_number} deleted`);
+                              fetchLead();
+                            } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to delete'); }
+                          }}
+                          className="btn btn-sm border border-red-200 text-red-500 hover:bg-red-50"
+                        >
+                          🗑 Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="text-xs text-gray-400 mt-2">{formatDateTime(q.created_at)}</div>
@@ -1209,7 +1225,13 @@ export default function LeadDetail() {
             <button onClick={() => { setShowQuotationModal(false); setQuotationStep('form'); setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' }); setQuotationFile(null); }} className="btn btn-secondary">Cancel</button>
             <button
               disabled={!quotationForm.amount}
-              onClick={() => setQuotationStep('review')}
+              onClick={async () => {
+                try {
+                  const res = await api.get('/quotations/next-pi');
+                  setPreviewPiNumber(res.data.pi_number);
+                } catch { setPreviewPiNumber(''); }
+                setQuotationStep('review');
+              }}
               className="btn btn-primary"
             >
               Review Quotation →
@@ -1302,7 +1324,7 @@ export default function LeadDetail() {
                   <div className="p-3">
                     <table className="w-full">
                       <tbody>
-                        <tr><td className="text-gray-400 pr-2 pb-0.5">PI No</td><td className="font-semibold text-gray-700">Auto on save</td></tr>
+                        <tr><td className="text-gray-400 pr-2 pb-0.5">Quotation No</td><td className="font-semibold text-gray-700">{previewPiNumber || 'Auto on save'}</td></tr>
                         <tr><td className="text-gray-400 pr-2 pb-0.5">Date</td><td>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td></tr>
                         {quotationForm.validity_date && <tr><td className="text-gray-400 pr-2 pb-0.5">Valid Until</td><td className="font-semibold">{fmtDate(quotationForm.validity_date)}</td></tr>}
                         {quotationForm.payment_terms && <tr><td className="text-gray-400 pr-2 pb-0.5">Terms</td><td>{quotationForm.payment_terms}</td></tr>}

@@ -235,12 +235,17 @@ router.get('/ceo', (req: AuthRequest, res: Response) => {
     GROUP BY month ORDER BY month ASC
   `).all();
 
+  // For pending: only count the latest quotation per lead to avoid double-counting
+  // when a lead has multiple revised quotations (e.g. PI-0011 then PI-0012 for same lead).
   const monthlyRevenueTrend = db.prepare(`
-    SELECT strftime('%Y-%m', datetime(created_at, '${IST}')) as month,
-           COALESCE(SUM(CASE WHEN payment_confirmed = 1 THEN amount ELSE 0 END), 0) as confirmed,
-           COALESCE(SUM(CASE WHEN payment_confirmed = 0 THEN amount ELSE 0 END), 0) as pending
-    FROM quotations
-    WHERE created_at >= date(datetime('now', '${IST}', '-6 months'))
+    SELECT strftime('%Y-%m', datetime(q.created_at, '${IST}')) as month,
+           COALESCE(SUM(CASE WHEN q.payment_confirmed = 1 THEN q.amount ELSE 0 END), 0) as confirmed,
+           COALESCE(SUM(CASE WHEN q.payment_confirmed = 0 THEN q.amount ELSE 0 END), 0) as pending
+    FROM quotations q
+    INNER JOIN (
+      SELECT lead_id, MAX(created_at) as latest_at FROM quotations GROUP BY lead_id
+    ) latest ON q.lead_id = latest.lead_id AND q.created_at = latest.latest_at
+    WHERE q.created_at >= date(datetime('now', '${IST}', '-6 months'))
     GROUP BY month ORDER BY month ASC
   `).all();
 

@@ -38,6 +38,13 @@ router.get('/lead/:leadId', (req: AuthRequest, res: Response) => {
   res.json(quotations);
 });
 
+// GET next PI number preview (without incrementing the counter)
+router.get('/next-pi', authorize('sales', 'management'), (req: AuthRequest, res: Response) => {
+  const row = db.prepare("SELECT value FROM counters WHERE name = 'pi'").get() as any;
+  const next = (row?.value || 0) + 1;
+  res.json({ pi_number: `Q-${String(next).padStart(4, '0')}` });
+});
+
 // POST create quotation
 router.post('/', authorize('sales', 'management'), upload.single('file'), async (req: AuthRequest, res: Response) => {
   const { lead_id, amount, discount, freight_charges, installation_charges, validity_date, payment_terms, notes, send_email } = req.body;
@@ -49,7 +56,7 @@ router.post('/', authorize('sales', 'management'), upload.single('file'), async 
     return res.status(403).json({ error: 'Access denied' });
 
   const id = uuidv4();
-  const pi_number = getNextNumber('pi', 'PI-');
+  const pi_number = getNextNumber('pi', 'Q-');
   const file_path = req.file ? `uploads/quotations/${req.file.filename}` : null;
   const discountVal = parseFloat(discount || '0') || 0;
   const amountVal = parseFloat(amount);
@@ -150,6 +157,23 @@ router.patch('/:id/confirm-payment', authorize('sales', 'management'), (req: Aut
   db.prepare(`UPDATE leads SET status = 'PAYMENT_CONFIRMED', updated_at = datetime('now', '+5 hours', '+30 minutes') WHERE id = ?`).run(quotation.lead_id);
   auditLog(req.user?.id, req.user?.name, 'PAYMENT_CONFIRMED', 'quotation', req.params.id, null, { payment_confirmed: true, payment_type: 'full' }, req.ip);
   res.json({ success: true, message: 'Payment confirmed. Production access unlocked.' });
+});
+
+// DELETE quotation — blocked if payment has been confirmed
+router.delete('/:id', authorize('sales', 'management'), (req: AuthRequest, res: Response) => {
+  const quotation = db.prepare('SELECT * FROM quotations WHERE id = ?').get(req.params.id) as any;
+  if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
+  if (quotation.payment_confirmed) return res.status(400).json({ error: 'Cannot delete a payment-confirmed quotation' });
+
+  // Delete uploaded file if present
+  if (quotation.file_path) {
+    const fullPath = path.join(__dirname, '../../../', quotation.file_path);
+    try { if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath); } catch { /* ignore */ }
+  }
+
+  db.prepare('DELETE FROM quotations WHERE id = ?').run(req.params.id);
+  auditLog(req.user?.id, req.user?.name, 'DELETE', 'quotation', req.params.id, { pi_number: quotation.pi_number, amount: quotation.amount }, null, req.ip);
+  res.json({ success: true });
 });
 
 export default router;
