@@ -39,6 +39,7 @@ export interface QuotationEmailData {
   paymentTerms?: string;
   notes?: string;
   itemRates?: Record<string, number>; // modelCode or name → base_price
+  itemHsnCodes?: Record<string, string>; // modelCode or name → hsn_sac_code
 }
 
 /* ── Formatters ── */
@@ -119,16 +120,27 @@ function buildQuotationHtml(d: QuotationEmailData): string {
     return fallbackRate;
   };
 
+  const getHsnForItem = (item: Item): string => {
+    if (d.itemHsnCodes) {
+      if (item.modelCode && d.itemHsnCodes[item.modelCode]) return d.itemHsnCodes[item.modelCode];
+      const key = Object.keys(d.itemHsnCodes).find(k => item.shortName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(item.shortName.toLowerCase()));
+      if (key) return d.itemHsnCodes[key];
+    }
+    return co.hsn || '841900'; // fallback to company default HSN
+  };
+
   let sno = 0;
   const productRows = items.map(item => {
     sno++;
     const rate    = getRateForItem(item);
+    const hsn     = getHsnForItem(item);
     const amt     = rate * item.qty;
     const inclGst = Math.round(amt * 1.18);
     return `<tr style="border-bottom:1px solid #e5e7eb;">
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">${item.name}</td>
       <td style="padding:7px 5px;font-size:11px;color:#555;">${item.shortName}</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">${hsn}</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${item.qty}.00<br/><span style="font-size:10px;color:#888;">nos</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(rate)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(amt)}</td>
@@ -136,8 +148,8 @@ function buildQuotationHtml(d: QuotationEmailData): string {
     </tr>`;
   }).join('');
 
-  const discRow  = d.discount > 0 ? `<tr><td colspan="6" style="padding:5px 8px;text-align:right;font-size:12px;color:#dc2626;">Less: Discount</td><td style="padding:5px 8px;text-align:right;font-size:12px;color:#dc2626;">− ${fmt(d.discount)}</td></tr>` : '';
-  const notesRow = d.notes ? `<tr><td colspan="7" style="padding:8px;font-size:11px;color:#555;border-top:1px solid #e5e7eb;"><strong>Note:</strong> ${d.notes}</td></tr>` : '';
+  const discRow  = d.discount > 0 ? `<tr><td colspan="7" style="padding:5px 8px;text-align:right;font-size:12px;color:#dc2626;">Less: Discount</td><td style="padding:5px 8px;text-align:right;font-size:12px;color:#dc2626;">− ${fmt(d.discount)}</td></tr>` : '';
+  const notesRow = d.notes ? `<tr><td colspan="8" style="padding:8px;font-size:11px;color:#555;border-top:1px solid #e5e7eb;"><strong>Note:</strong> ${d.notes}</td></tr>` : '';
 
   let extraRows = '';
   if (freightAmt > 0) {
@@ -146,6 +158,7 @@ function buildQuotationHtml(d: QuotationEmailData): string {
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">Freight Charges</td>
       <td style="padding:7px 5px;font-size:11px;color:#555;">Logistics &amp; Transportation</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">996511</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">1.00<br/><span style="font-size:10px;color:#888;">lump</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(freightAmt)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(freightAmt)}</td>
@@ -158,6 +171,7 @@ function buildQuotationHtml(d: QuotationEmailData): string {
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">Installation Charges</td>
       <td style="padding:7px 5px;font-size:11px;color:#555;">Setup &amp; Commissioning</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">998721</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">1.00<br/><span style="font-size:10px;color:#888;">lump</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(installationAmt)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(installationAmt)}</td>
@@ -242,6 +256,7 @@ function buildQuotationHtml(d: QuotationEmailData): string {
       <th style="padding:7px 5px;font-size:11px;text-align:center;width:28px;">S.<br/>No</th>
       <th style="padding:7px 5px;font-size:11px;text-align:left;">Item</th>
       <th style="padding:7px 5px;font-size:11px;text-align:left;">Description</th>
+      <th style="padding:7px 5px;font-size:11px;text-align:center;width:65px;">HSN/<br/>SAC</th>
       <th style="padding:7px 5px;font-size:11px;text-align:center;">Qty</th>
       <th style="padding:7px 5px;font-size:11px;text-align:right;">Rate (excl. GST)</th>
       <th style="padding:7px 5px;font-size:11px;text-align:right;">Amt (excl. GST)</th>
@@ -252,11 +267,11 @@ function buildQuotationHtml(d: QuotationEmailData): string {
 
   <!-- TOTALS -->
   <table style="width:100%;border-collapse:collapse;border-top:2px solid #d1d5db;">
-    <tr><td colspan="6" style="padding:5px 8px;font-size:12px;color:#555;text-align:right;">Sub Total (excl. GST)</td><td style="padding:5px 8px;font-size:12px;text-align:right;width:105px;">${fmt(subTotalExcl)}</td></tr>
+    <tr><td colspan="7" style="padding:5px 8px;font-size:12px;color:#555;text-align:right;">Sub Total (excl. GST)</td><td style="padding:5px 8px;font-size:12px;text-align:right;width:105px;">${fmt(subTotalExcl)}</td></tr>
     ${discRow}
-    <tr><td colspan="6" style="padding:4px 8px;font-size:11px;color:#555;text-align:right;">Total GST (18%)</td><td style="padding:4px 8px;font-size:11px;text-align:right;">${fmt(totalGst)}</td></tr>
+    <tr><td colspan="7" style="padding:4px 8px;font-size:11px;color:#555;text-align:right;">Total GST (18%)</td><td style="padding:4px 8px;font-size:11px;text-align:right;">${fmt(totalGst)}</td></tr>
     <tr style="background:#f9fafb;border-top:2px solid #374151;">
-      <td colspan="6" style="padding:8px;font-size:13px;font-weight:700;text-align:right;">Grand Total (incl. 18% GST)</td>
+      <td colspan="7" style="padding:8px;font-size:13px;font-weight:700;text-align:right;">Grand Total (incl. 18% GST)</td>
       <td style="padding:8px;font-size:13px;font-weight:700;text-align:right;">${fmt(d.grandTotal)}</td>
     </tr>
   </table>
@@ -440,6 +455,7 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:center;width:28px;">#</th>
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:left;">Item</th>
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:left;">Description</th>
+      <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:center;width:65px;">HSN/<br/>SAC</th>
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:center;">Qty</th>
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:right;">Rate (excl. GST)</th>
       <th style="padding:8px 5px;font-size:10px;color:#e2e8f0;text-align:right;">Amt (excl. GST)</th>
@@ -450,11 +466,11 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
 
   <!-- TOTALS -->
   <table style="width:100%;border-collapse:collapse;border-top:2px solid #1e293b;">
-    <tr><td colspan="6" style="padding:5px 10px;font-size:12px;color:#64748b;text-align:right;">Sub Total (excl. GST)</td><td style="padding:5px 10px;font-size:12px;text-align:right;width:115px;">₹ ${fmt(subTotalExcl)}</td></tr>
-    ${disc > 0 ? `<tr><td colspan="6" style="padding:4px 10px;font-size:12px;color:#dc2626;text-align:right;">Less: Discount</td><td style="padding:4px 10px;font-size:12px;text-align:right;color:#dc2626;">− ₹ ${fmt(disc)}</td></tr>` : ''}
-    <tr><td colspan="6" style="padding:4px 10px;font-size:11px;color:#64748b;text-align:right;">Total GST (18%)</td><td style="padding:4px 10px;font-size:11px;text-align:right;">₹ ${fmt(totalGst)}</td></tr>
+    <tr><td colspan="7" style="padding:5px 10px;font-size:12px;color:#64748b;text-align:right;">Sub Total (excl. GST)</td><td style="padding:5px 10px;font-size:12px;text-align:right;width:115px;">₹ ${fmt(subTotalExcl)}</td></tr>
+    ${disc > 0 ? `<tr><td colspan="7" style="padding:4px 10px;font-size:12px;color:#dc2626;text-align:right;">Less: Discount</td><td style="padding:4px 10px;font-size:12px;text-align:right;color:#dc2626;">− ₹ ${fmt(disc)}</td></tr>` : ''}
+    <tr><td colspan="7" style="padding:4px 10px;font-size:11px;color:#64748b;text-align:right;">Total GST (18%)</td><td style="padding:4px 10px;font-size:11px;text-align:right;">₹ ${fmt(totalGst)}</td></tr>
     <tr style="background:linear-gradient(90deg,#0f172a,#1e3a8a);">
-      <td colspan="6" style="padding:10px;font-size:13px;font-weight:900;text-align:right;color:#bfdbfe;">Grand Total (incl. 18% GST)</td>
+      <td colspan="7" style="padding:10px;font-size:13px;font-weight:900;text-align:right;color:#bfdbfe;">Grand Total (incl. 18% GST)</td>
       <td style="padding:10px;font-size:14px;font-weight:900;text-align:right;color:#fff;">₹ ${fmt(grandTotal)}</td>
     </tr>
   </table>

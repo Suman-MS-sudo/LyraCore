@@ -86,13 +86,18 @@ router.post('/', authorize('sales', 'management'), upload.single('file'), async 
                        + freightVal + freightGst
                        + installationVal + installGst;
 
-      // Build per-item rates from DB products
+      // Build per-item rates and HSN codes from DB products
       const itemRates: Record<string, number> = {};
-      const allProducts = db.prepare('SELECT name, model_code, base_price FROM products WHERE is_active = 1').all() as any[];
+      const itemHsnCodes: Record<string, string> = {};
+      const allProducts = db.prepare('SELECT name, model_code, base_price, hsn_sac_code FROM products WHERE is_active = 1').all() as any[];
       allProducts.forEach((p: any) => {
         if (p.base_price) {
-          if (p.model_code) itemRates[p.model_code] = Number(p.base_price);
+          if (p.model_code) {
+            itemRates[p.model_code] = Number(p.base_price);
+            itemHsnCodes[p.model_code] = p.hsn_sac_code || '';
+          }
           itemRates[p.name] = Number(p.base_price);
+          itemHsnCodes[p.name] = p.hsn_sac_code || '';
         }
       });
 
@@ -118,6 +123,7 @@ router.post('/', authorize('sales', 'management'), upload.single('file'), async 
         paymentTerms: payment_terms,
         notes,
         itemRates,
+        itemHsnCodes,
       });
       db.prepare(`UPDATE quotations SET email_sent = 1, email_sent_at = datetime('now', '+5 hours', '+30 minutes') WHERE id = ?`).run(id);
       emailStatus = { sent: true, error: '' };
