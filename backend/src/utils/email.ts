@@ -327,6 +327,8 @@ export interface DispatchInvoiceEmailData {
   paymentType?: string;
   amountPaid?: number;
   paymentConfirmed?: boolean;
+  itemRates?: Record<string, number>; // modelCode or name → base_price
+  itemHsnCodes?: Record<string, string>; // modelCode or name → hsn_sac_code
 }
 
 function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
@@ -337,6 +339,7 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
     gstin:   process.env.COMPANY_GSTIN   || '33DMYPR1025P1ZB',
     phone:   process.env.COMPANY_PHONE   || '8122378860',
     email:   process.env.COMPANY_EMAIL   || process.env.SMTP_USER || '',
+    hsn:     process.env.COMPANY_HSN     || '841900',
   };
 
   const items        = parseItems(d.productInterest);
@@ -354,16 +357,27 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
   const amtPaid  = d.paymentType === 'partial' ? (d.amountPaid || 0) : (d.paymentConfirmed ? grandTotal : 0);
   const dueOnDlv = Math.max(0, grandTotal - amtPaid);
 
+  const getHsnForItem = (item: Item): string => {
+    if (d.itemHsnCodes) {
+      if (item.modelCode && d.itemHsnCodes[item.modelCode]) return d.itemHsnCodes[item.modelCode];
+      const key = Object.keys(d.itemHsnCodes).find(k => item.shortName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(item.shortName.toLowerCase()));
+      if (key) return d.itemHsnCodes[key];
+    }
+    return co.hsn || '841900'; // fallback to company default HSN
+  };
+
   let sno = 0;
   const productRows = items.map(item => {
     sno++;
     const rate    = unitPrice;
+    const hsn     = getHsnForItem(item);
     const amt     = rate * item.qty;
     const inclGst = Math.round(amt * 1.18);
     return `<tr style="border-bottom:1px solid #e5e7eb;">
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">${item.name}</td>
       <td style="padding:7px 5px;font-size:11px;color:#64748b;">${item.shortName}</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">${hsn}</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${item.qty}.00<br/><span style="font-size:10px;color:#94a3b8;">nos</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(rate)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(amt)}</td>
@@ -378,6 +392,7 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">Freight Charges</td>
       <td style="padding:7px 5px;font-size:11px;color:#64748b;">Logistics &amp; Transportation</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">996511</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">1.00<br/><span style="font-size:10px;color:#94a3b8;">lump</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(freight)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(freight)}</td>
@@ -390,6 +405,7 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
       <td style="padding:7px 5px;text-align:center;font-size:12px;">${sno}</td>
       <td style="padding:7px 5px;font-size:12px;font-weight:600;">Installation Charges</td>
       <td style="padding:7px 5px;font-size:11px;color:#64748b;">Setup &amp; Commissioning</td>
+      <td style="padding:7px 5px;text-align:center;font-size:11px;color:#666;">998721</td>
       <td style="padding:7px 5px;text-align:center;font-size:12px;">1.00<br/><span style="font-size:10px;color:#94a3b8;">lump</span></td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmtInt(install)}</td>
       <td style="padding:7px 5px;text-align:right;font-size:12px;">${fmt(install)}</td>

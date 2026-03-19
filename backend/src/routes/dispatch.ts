@@ -81,6 +81,21 @@ router.post('/:orderId/send-invoice-email', authorize('production', 'management'
   const cleanAddr = (a: string) =>
     (a || '').split('\n').filter((l: string) => !/^\s*[\d\s\-\+\(\)]{7,15}\s*$/.test(l.trim())).join('\n').trim();
 
+  // Build per-item rates and HSN codes from DB products
+  const itemRates: Record<string, number> = {};
+  const itemHsnCodes: Record<string, string> = {};
+  const allProducts = db.prepare('SELECT name, model_code, base_price, hsn_sac_code FROM products WHERE is_active = 1').all() as any[];
+  allProducts.forEach((p: any) => {
+    if (p.base_price) {
+      if (p.model_code) {
+        itemRates[p.model_code] = Number(p.base_price);
+        itemHsnCodes[p.model_code] = p.hsn_sac_code || '';
+      }
+      itemRates[p.name] = Number(p.base_price);
+      itemHsnCodes[p.name] = p.hsn_sac_code || '';
+    }
+  });
+
   try {
     await sendDispatchInvoiceEmail({
       to,
@@ -107,6 +122,8 @@ router.post('/:orderId/send-invoice-email', authorize('production', 'management'
       paymentType:      order.payment_type,
       amountPaid:       Number(order.amount_paid || 0),
       paymentConfirmed: Boolean(order.payment_confirmed),
+      itemRates,
+      itemHsnCodes,
     });
     auditLog(req.user?.id, req.user?.name, 'EMAIL_SENT', 'dispatch', dispatch.id, null, { to, type: 'dispatch_invoice' }, req.ip);
     res.json({ success: true, message: `Dispatch invoice sent to ${to}` });
