@@ -12,13 +12,14 @@ interface Product {
   product_type: string;
   description?: string;
   base_price?: number;
+  hsn_sac_code?: string;
   specifications?: string;
   is_active: number;
   created_at: string;
   updated_at: string;
 }
 
-const EMPTY_FORM = { name: '', model_code: '', product_type: 'Vending Machine', description: '', base_price: '', specifications: '', is_active: 1 };
+const EMPTY_FORM = { name: '', model_code: '', product_type: 'Vending Machine', description: '', base_price: '', hsn_sac_code: '', specifications: '', is_active: 1 };
 const TYPES = ['All', 'Vending Machine', 'Incinerator'];
 
 export default function Products() {
@@ -61,6 +62,7 @@ export default function Products() {
       product_type: p.product_type,
       description: p.description || '',
       base_price: p.base_price !== undefined && p.base_price !== null ? String(p.base_price) : '',
+      hsn_sac_code: p.hsn_sac_code || '',
       specifications: p.specifications || '',
       is_active: p.is_active,
     });
@@ -230,6 +232,10 @@ export default function Products() {
           <div>
             <label className="form-label">Base Price (₹) <span className="text-gray-400 font-normal">(excl. GST)</span></label>
             <input type="number" className="form-input" value={form.base_price} onChange={e => setForm(p => ({ ...p, base_price: e.target.value }))} placeholder="0" />
+          </div>
+          <div>
+            <label className="form-label">HSN/SAC Code</label>
+            <input className="form-input" value={form.hsn_sac_code} onChange={e => setForm(p => ({ ...p, hsn_sac_code: e.target.value }))} placeholder="e.g. 8419, 998363" />
           </div>
           {/* GST breakdown — shown as soon as base price is entered */}
           {Number(form.base_price) > 0 && (() => {

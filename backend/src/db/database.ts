@@ -197,6 +197,7 @@ export function initializeDatabase() {
       product_type TEXT NOT NULL,
       description TEXT,
       base_price REAL,
+      hsn_sac_code TEXT,
       specifications TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes')),
@@ -449,6 +450,11 @@ export function initializeDatabase() {
       console.log('Migrated: ceo role renamed to management.');
     }
   } catch (e) { console.log('Role migration skipped or already done.'); }
+
+  // Migration: add hsn_sac_code to products table
+  try {
+    _db.run('ALTER TABLE products ADD COLUMN hsn_sac_code TEXT');
+  } catch { /* already exists */ }
 
   console.log('Database initialized successfully.');
 }
