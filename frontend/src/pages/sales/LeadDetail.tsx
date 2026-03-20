@@ -17,6 +17,7 @@ import { useAuth } from '../../contexts/AuthContext';
 interface Product {
   id: string; name: string; model_code?: string;
   product_type: string; base_price?: number; is_active: number;
+  hsn_sac_code?: string;
 }
 interface SelectedItem { product: Product; qty: number; }
 
@@ -1269,7 +1270,8 @@ export default function LeadDetail() {
               shortName.toLowerCase().includes(pr.name.toLowerCase())
             );
             const basePrice = prod?.base_price ? Number(prod.base_price) : null;
-            return { qty, name: fullName, shortName, modelCode, basePrice };
+            const hsn = prod?.hsn_sac_code || '841900'; // fallback HSN
+            return { qty, name: fullName, shortName, modelCode, basePrice, hsn };
           }).filter(i => i.name);
 
           // Per-item amounts: use actual base_price when available, else distribute sub equally
@@ -1340,6 +1342,7 @@ export default function LeadDetail() {
                       <th className="p-2 text-center w-6">S.No</th>
                       <th className="p-2 text-left">Item</th>
                       <th className="p-2 text-left">Description</th>
+                      <th className="p-2 text-center w-16">HSN/SAC</th>
                       <th className="p-2 text-center">Qty</th>
                       <th className="p-2 text-right">Rate (excl. GST)</th>
                       <th className="p-2 text-right">Amt (excl. GST)</th>
@@ -1352,6 +1355,7 @@ export default function LeadDetail() {
                           <td className="p-2 text-center">{i+1}</td>
                           <td className="p-2 font-semibold text-gray-800">{item.name}</td>
                           <td className="p-2 text-gray-500">{item.shortName || item.name}</td>
+                          <td className="p-2 text-center text-gray-600 text-sm">{item.hsn}</td>
                           <td className="p-2 text-center">{item.qty}.00<br/><span className="text-gray-400" style={{fontSize:'9px'}}>nos</span></td>
                           <td className="p-2 text-right">{fmtI(item.rate)}</td>
                           <td className="p-2 text-right">{fmt(item.amt)}</td>
@@ -1363,6 +1367,7 @@ export default function LeadDetail() {
                         <td className="p-2 text-center">{items.length + 1}</td>
                         <td className="p-2 font-semibold text-gray-800">Freight Charges</td>
                         <td className="p-2 text-gray-500">Logistics &amp; Transportation</td>
+                        <td className="p-2 text-center text-gray-600 text-sm">996511</td>
                         <td className="p-2 text-center">1.00<br/><span className="text-gray-400" style={{fontSize:'9px'}}>lump</span></td>
                         <td className="p-2 text-right">{fmtI(freight)}</td>
                         <td className="p-2 text-right">{fmt(freight)}</td>
@@ -1374,6 +1379,7 @@ export default function LeadDetail() {
                         <td className="p-2 text-center">{items.length + (freight > 0 ? 2 : 1)}</td>
                         <td className="p-2 font-semibold text-gray-800">Installation Charges</td>
                         <td className="p-2 text-gray-500">Setup &amp; Commissioning</td>
+                        <td className="p-2 text-center text-gray-600 text-sm">998721</td>
                         <td className="p-2 text-center">1.00<br/><span className="text-gray-400" style={{fontSize:'9px'}}>lump</span></td>
                         <td className="p-2 text-right">{fmtI(install)}</td>
                         <td className="p-2 text-right">{fmt(install)}</td>
@@ -1381,7 +1387,7 @@ export default function LeadDetail() {
                       </tr>
                     )}
                     {quotationForm.notes && (
-                      <tr><td colSpan={7} className="p-2 text-gray-500 border-t border-gray-100"><strong>Note:</strong> {quotationForm.notes}</td></tr>
+                      <tr><td colSpan={8} className="p-2 text-gray-500 border-t border-gray-100"><strong>Note:</strong> {quotationForm.notes}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1389,11 +1395,11 @@ export default function LeadDetail() {
                 {/* Totals */}
                 <table className="w-full border-collapse border-t-2 border-gray-300">
                   <tbody>
-                    <tr><td colSpan={6} className="p-1.5 text-right text-gray-500">Sub Total (excl. GST)</td><td className="p-1.5 text-right w-24">{fmt(subTotalExcl)}</td></tr>
-                    {disc > 0 && <tr><td colSpan={6} className="p-1.5 text-right text-red-500">Less: Discount</td><td className="p-1.5 text-right text-red-500">− {fmt(disc)}</td></tr>}
-                    <tr><td colSpan={6} className="p-1.5 text-right text-gray-500">Total GST (18%)</td><td className="p-1.5 text-right">{fmt(totalGst)}</td></tr>
+                    <tr><td colSpan={7} className="p-1.5 text-right text-gray-500">Sub Total (excl. GST)</td><td className="p-1.5 text-right w-24">{fmt(subTotalExcl)}</td></tr>
+                    {disc > 0 && <tr><td colSpan={7} className="p-1.5 text-right text-red-500">Less: Discount</td><td className="p-1.5 text-right text-red-500">− {fmt(disc)}</td></tr>}
+                    <tr><td colSpan={7} className="p-1.5 text-right text-gray-500">Total GST (18%)</td><td className="p-1.5 text-right">{fmt(totalGst)}</td></tr>
                     <tr className="bg-gray-50 border-t-2 border-gray-700">
-                      <td colSpan={6} className="p-2 text-right font-bold text-sm">Grand Total (incl. 18% GST)</td>
+                      <td colSpan={7} className="p-2 text-right font-bold text-sm">Grand Total (incl. 18% GST)</td>
                       <td className="p-2 text-right font-bold text-sm">{fmt(total)}</td>
                     </tr>
                   </tbody>
