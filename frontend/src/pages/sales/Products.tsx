@@ -13,13 +13,14 @@ interface Product {
   description?: string;
   base_price?: number;
   hsn_sac_code?: string;
+  gst_rate?: number;
   specifications?: string;
   is_active: number;
   created_at: string;
   updated_at: string;
 }
 
-const EMPTY_FORM = { name: '', model_code: '', product_type: 'Vending Machine', description: '', base_price: '', hsn_sac_code: '', specifications: '', is_active: 1 };
+const EMPTY_FORM = { name: '', model_code: '', product_type: 'Vending Machine', description: '', base_price: '', hsn_sac_code: '', gst_rate: '18', specifications: '', is_active: 1 };
 const TYPES = ['All', 'Vending Machine', 'Incinerator'];
 
 export default function Products() {
@@ -63,6 +64,7 @@ export default function Products() {
       description: p.description || '',
       base_price: p.base_price !== undefined && p.base_price !== null ? String(p.base_price) : '',
       hsn_sac_code: p.hsn_sac_code || '',
+      gst_rate: p.gst_rate !== undefined && p.gst_rate !== null ? String(p.gst_rate) : '18',
       specifications: p.specifications || '',
       is_active: p.is_active,
     });
@@ -76,6 +78,7 @@ export default function Products() {
       const payload = {
         ...form,
         base_price: form.base_price ? Number(form.base_price) : null,
+        gst_rate: form.gst_rate ? Number(form.gst_rate) : 18,
       };
       if (editing) {
         await api.patch(`/products/${editing.id}`, payload);
@@ -170,7 +173,8 @@ export default function Products() {
               </div>
 
               {p.base_price !== undefined && p.base_price !== null && (() => {
-                const gst   = Math.round(p.base_price! * 0.18);
+                const rate  = p.gst_rate !== undefined && p.gst_rate !== null ? p.gst_rate : 18;
+                const gst   = Math.round(p.base_price! * rate / 100);
                 const total = p.base_price! + gst;
                 return (
                   <div className="space-y-0.5">
@@ -179,7 +183,7 @@ export default function Products() {
                       <span className="text-xs text-gray-400">incl. GST</span>
                     </div>
                     <div className="text-xs text-gray-400">
-                      {formatCurrency(p.base_price)} + {formatCurrency(gst)} GST (18%)
+                      {formatCurrency(p.base_price)} + {formatCurrency(gst)} GST ({rate}%)
                     </div>
                   </div>
                 );
@@ -234,24 +238,29 @@ export default function Products() {
             <input type="number" className="form-input" value={form.base_price} onChange={e => setForm(p => ({ ...p, base_price: e.target.value }))} placeholder="0" />
           </div>
           <div>
+            <label className="form-label">GST Rate (%)</label>
+            <input type="number" min="0" max="100" step="0.1" className="form-input" value={form.gst_rate} onChange={e => setForm(p => ({ ...p, gst_rate: e.target.value }))} placeholder="e.g. 5, 12, 18, 28" />
+          </div>
+          <div>
             <label className="form-label">HSN/SAC Code</label>
             <input className="form-input" value={form.hsn_sac_code} onChange={e => setForm(p => ({ ...p, hsn_sac_code: e.target.value }))} placeholder="e.g. 8419, 998363" />
           </div>
           {/* GST breakdown — shown as soon as base price is entered */}
           {Number(form.base_price) > 0 && (() => {
             const base = Number(form.base_price);
-            const gst  = Math.round(base * 0.18);
+            const rate = Number(form.gst_rate) || 0;
+            const gst  = Math.round(base * rate / 100);
             const total = base + gst;
             return (
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
-                <div className="text-xs font-semibold text-blue-500 mb-2 uppercase tracking-wider">GST Calculation (18%)</div>
+                <div className="text-xs font-semibold text-blue-500 mb-2 uppercase tracking-wider">GST Calculation ({rate}%)</div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-gray-600">
                     <span>Base Price</span>
                     <span>{formatCurrency(base)}</span>
                   </div>
                   <div className="flex justify-between text-blue-600">
-                    <span>GST @ 18%</span>
+                    <span>GST @ {rate}%</span>
                     <span>+ {formatCurrency(gst)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-gray-900 border-t border-blue-200 pt-1 mt-1">

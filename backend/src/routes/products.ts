@@ -28,14 +28,14 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
 
 // POST create product (CEO only)
 router.post('/', authorize('management'), (req: AuthRequest, res: Response) => {
-  const { name, model_code, product_type, description, base_price, hsn_sac_code, specifications } = req.body;
+  const { name, model_code, product_type, description, base_price, hsn_sac_code, gst_rate, specifications } = req.body;
   if (!name || !product_type) return res.status(400).json({ error: 'Name and product_type required' });
   const id = uuidv4();
   const now = nowIST();
   db.prepare(`
-    INSERT INTO products (id, name, model_code, product_type, description, base_price, hsn_sac_code, specifications, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, name, model_code || null, product_type, description || null, base_price || null, hsn_sac_code || null, specifications || null, now, now);
+    INSERT INTO products (id, name, model_code, product_type, description, base_price, hsn_sac_code, gst_rate, specifications, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, model_code || null, product_type, description || null, base_price || null, hsn_sac_code || null, gst_rate !== undefined ? Number(gst_rate) : 18, specifications || null, now, now);
   auditLog(req.user?.id, req.user?.name, 'CREATE', 'product', id, null, req.body);
   res.status(201).json(db.prepare('SELECT * FROM products WHERE id = ?').get(id));
 });
@@ -44,7 +44,7 @@ router.post('/', authorize('management'), (req: AuthRequest, res: Response) => {
 router.patch('/:id', authorize('management'), (req: AuthRequest, res: Response) => {
   const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id) as any;
   if (!product) return res.status(404).json({ error: 'Not found' });
-  const fields = ['name', 'model_code', 'product_type', 'description', 'base_price', 'hsn_sac_code', 'specifications', 'is_active'];
+  const fields = ['name', 'model_code', 'product_type', 'description', 'base_price', 'hsn_sac_code', 'gst_rate', 'specifications', 'is_active'];
   const updates: string[] = ["updated_at = datetime('now', '+5 hours', '+30 minutes')"];
   const values: any[] = [];
   for (const f of fields) {

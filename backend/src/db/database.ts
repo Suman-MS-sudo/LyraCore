@@ -456,6 +456,11 @@ export function initializeDatabase() {
     _db.run('ALTER TABLE products ADD COLUMN hsn_sac_code TEXT');
   } catch { /* already exists */ }
 
+  // Migration: add gst_rate to products table
+  try {
+    _db.run('ALTER TABLE products ADD COLUMN gst_rate REAL NOT NULL DEFAULT 18');
+  } catch { /* already exists */ }
+
   console.log('Database initialized successfully.');
 }
 
