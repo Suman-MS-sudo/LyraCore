@@ -31,6 +31,9 @@ const INDIA_CITIES: Record<string, string[]> = {
     'Tirupathur','Tiruppur','Tiruvallur','Tiruvannamalai','Tiruvarur',
     'Vellore','Villupuram','Virudhunagar',
   ],
+  'Puducherry': [
+    'Karaikal','Mahe','Puducherry','Yanam',
+  ],
   'Telangana': [
     'Adilabad','Bhadradri Kothagudem','Hanumakonda','Hyderabad','Jagtial',
     'Jangaon','Jayashankar Bhupalpally','Jogulamba Gadwal','Kamareddy','Karimnagar',

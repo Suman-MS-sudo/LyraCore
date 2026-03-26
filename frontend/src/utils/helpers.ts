@@ -31,7 +31,7 @@ export function formatDateTime(date?: string): string {
 
 export function formatCurrency(value?: number): string {
   if (value === undefined || value === null) return '—';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
 }
 
 export function isOverdue(date?: string): boolean {

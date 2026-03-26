@@ -21,7 +21,7 @@ interface Product {
 }
 
 const EMPTY_FORM = { name: '', model_code: '', product_type: 'Vending Machine', description: '', base_price: '', hsn_sac_code: '', gst_rate: '18', specifications: '', is_active: 1 };
-const TYPES = ['All', 'Vending Machine', 'Incinerator'];
+const TYPES = ['All', 'Vending Machine', 'Incinerator', 'Napkins'];
 
 export default function Products() {
   const { user } = useAuth();
@@ -156,7 +156,7 @@ export default function Products() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg">{p.product_type === 'Vending Machine' ? '🏪' : '🔥'}</span>
+                    <span className="text-lg">{p.product_type === 'Vending Machine' ? '🏪' : p.product_type === 'Incinerator' ? '🔥' : '🧻'}</span>
                     <span className="font-semibold text-gray-900 text-sm">{p.name}</span>
                     {!p.is_active && <span className="badge badge-red text-xs">Inactive</span>}
                   </div>
@@ -174,7 +174,7 @@ export default function Products() {
 
               {p.base_price !== undefined && p.base_price !== null && (() => {
                 const rate  = p.gst_rate !== undefined && p.gst_rate !== null ? p.gst_rate : 18;
-                const gst   = Math.round(p.base_price! * rate / 100);
+                const gst   = p.base_price! * rate / 100;
                 const total = p.base_price! + gst;
                 return (
                   <div className="space-y-0.5">
@@ -227,6 +227,7 @@ export default function Products() {
             <select className="form-input" value={form.product_type} onChange={e => setForm(p => ({ ...p, product_type: e.target.value }))}>
               <option value="Vending Machine">Vending Machine</option>
               <option value="Incinerator">Incinerator</option>
+              <option value="Napkins">Napkins</option>
             </select>
           </div>
           <div>
@@ -249,7 +250,7 @@ export default function Products() {
           {Number(form.base_price) > 0 && (() => {
             const base = Number(form.base_price);
             const rate = Number(form.gst_rate) || 0;
-            const gst  = Math.round(base * rate / 100);
+            const gst  = base * rate / 100;
             const total = base + gst;
             return (
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">

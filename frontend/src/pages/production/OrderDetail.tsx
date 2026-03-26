@@ -241,7 +241,7 @@ function printShippingLabel(addr: string, name: string, orderNo: string, phone?:
   win.document.close(); win.focus();
 }
 
-function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_code: string; base_price: number }[]) {
+function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_code: string; base_price: number; hsn_sac_code: string }[]) {
   const win = window.open('', '_blank', 'width=950,height=900');
   if (!win) return;
   const fmt = (s: string) => { try { return parseIST(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }); } catch { return s; } };
@@ -310,6 +310,20 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
     }
     return fallbackUnitPrice;
   };
+  const getItemHsn = (item: { shortName: string; modelCode: string }): string => {
+    if (catalog.length > 0) {
+      if (item.modelCode) {
+        const hit = catalog.find(p => p.model_code?.toLowerCase() === item.modelCode.toLowerCase());
+        if (hit?.hsn_sac_code) return hit.hsn_sac_code;
+      }
+      const hit = catalog.find(p =>
+        item.shortName.toLowerCase().includes(p.name.toLowerCase()) ||
+        p.name.toLowerCase().includes(item.shortName.toLowerCase())
+      );
+      if (hit?.hsn_sac_code) return hit.hsn_sac_code;
+    }
+    return '841900';
+  };
   const itemRates = parsedItems.map(item => getItemRate(item.modelCode));
   const computedBase = parsedItems.reduce((s, item, i) => s + itemRates[i] * item.qty, 0);
   const effectiveBase = computedBase > 0 && catalog.length > 0 ? computedBase : baseAmt;
@@ -349,10 +363,12 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
     const rate       = itemRates[i];
     const grossAmt   = rate * item.qty;
     const inclGst    = Math.round(grossAmt * 1.18);
+    const hsn        = getItemHsn(item);
     return `<tr style="border-bottom:1px solid #e5e7eb;${i%2===1?'background:#f9fafb':''}">
       <td style="padding:7px 10px;text-align:center">${i+1}</td>
       <td style="padding:7px 10px"><strong>${item.fullName}</strong></td>
       <td style="padding:7px 10px;text-align:center;color:#555">${item.shortName !== item.fullName ? item.shortName : '—'}</td>
+      <td style="padding:7px 10px;text-align:center;font-size:11px;color:#666">${hsn}</td>
       <td style="padding:7px 10px;text-align:center">${item.qty}.00<br><span style="font-size:10px;color:#aaa">nos</span></td>
       <td style="padding:7px 10px;text-align:right">${fmtI(rate)}</td>
       <td style="padding:7px 10px;text-align:right">${fmtN(grossAmt)}</td>
@@ -364,6 +380,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
     <td style="padding:7px 10px;text-align:center">${parsedItems.length+1}</td>
     <td style="padding:7px 10px"><strong>Freight Charges</strong></td>
     <td style="padding:7px 10px;color:#555">Logistics &amp; Transportation</td>
+    <td style="padding:7px 10px;text-align:center;font-size:11px;color:#666">996511</td>
     <td style="padding:7px 10px;text-align:center">1.00<br><span style="font-size:10px;color:#aaa">lump</span></td>
     <td style="padding:7px 10px;text-align:right">${fmtI(freight)}</td>
     <td style="padding:7px 10px;text-align:right">${fmtN(freight)}</td>
@@ -374,6 +391,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
     <td style="padding:7px 10px;text-align:center">${parsedItems.length + (freight>0?1:0) + 1}</td>
     <td style="padding:7px 10px"><strong>Installation Charges</strong></td>
     <td style="padding:7px 10px;color:#555">Setup &amp; Commissioning</td>
+    <td style="padding:7px 10px;text-align:center;font-size:11px;color:#666">998721</td>
     <td style="padding:7px 10px;text-align:center">1.00<br><span style="font-size:10px;color:#aaa">lump</span></td>
     <td style="padding:7px 10px;text-align:right">${fmtI(install)}</td>
     <td style="padding:7px 10px;text-align:right">${fmtN(install)}</td>
@@ -561,6 +579,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
           <th style="width:36px;text-align:center">#</th>
           <th>Item</th>
           <th>Description</th>
+          <th style="width:70px;text-align:center">HSN/SAC</th>
           <th style="width:70px;text-align:center">Qty</th>
           <th style="width:100px;text-align:right">Rate (excl. GST)</th>
           <th style="width:110px;text-align:right">Amount (excl. GST)</th>
@@ -725,10 +744,10 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [techUsers, setTechUsers] = useState<{ id: string; name: string; role: string }[]>([]);
-  const [productCatalog, setProductCatalog] = useState<{ name: string; model_code: string; base_price: number }[]>([]);
+  const [productCatalog, setProductCatalog] = useState<{ name: string; model_code: string; base_price: number; hsn_sac_code: string }[]>([]);
 
   useEffect(() => {
-    api.get('/products').then(r => setProductCatalog((r.data as any[]).map((p: any) => ({ name: p.name, model_code: p.model_code, base_price: Number(p.base_price) })))).catch(() => {});
+    api.get('/products').then(r => setProductCatalog((r.data as any[]).map((p: any) => ({ name: p.name, model_code: p.model_code, base_price: Number(p.base_price), hsn_sac_code: p.hsn_sac_code || '' })))).catch(() => {});
   }, []);
 
   useEffect(() => {
