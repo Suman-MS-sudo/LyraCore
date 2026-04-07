@@ -22,6 +22,8 @@ echo ">>> Rebuilding backend..."
 cd "$APP_DIR/backend"
 npm ci --silent
 npm run build
+echo ">>> Applying database migrations..."
+npm run migrate
 
 echo ">>> Rebuilding frontend..."
 cd "$APP_DIR/frontend"

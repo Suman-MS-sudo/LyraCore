@@ -383,7 +383,7 @@ export default function LeadDetail() {
     { key: 'overview',     label: 'Overview' },
     { key: 'requirements', label: 'Requirements', badge: lead.requirement_confirmed ? undefined : 1 },
     { key: 'followups',    label: 'Follow-ups', badge: lead.followups?.filter((f: any) => !f.completed_at).length || undefined },
-    { key: 'quotations',   label: 'Quotations', badge: lead.quotations?.filter((q: Quotation) => !q.payment_confirmed && q.payment_type !== 'partial').length || undefined },
+    { key: 'quotations',   label: 'Quotations', badge: lead.quotations?.length || undefined },
     ...(showClosure ? [{ key: 'closure' as Tab, label: 'Closure / Lost' }] : []),
   ];
 

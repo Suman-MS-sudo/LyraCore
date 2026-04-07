@@ -12,6 +12,7 @@ import Customers from './pages/sales/Customers';
 import Products from './pages/sales/Products';
 import SayHi from './pages/sales/SayHi';
 import EmailComposer from './pages/sales/EmailComposer';
+import MonthlyReport from './pages/sales/MonthlyReport';
 
 // Production
 import ProductionDashboard from './pages/production/Dashboard';
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="products" element={<Products />} />
           <Route path="sayhi" element={<SayHi />} />
           <Route path="email" element={<EmailComposer />} />
+          <Route path="reports" element={<MonthlyReport />} />
         </Route>
 
         {/* Production Routes */}
@@ -85,6 +87,7 @@ export default function App() {
           <Route path="products" element={<Products />} />
           <Route path="sayhi" element={<SayHi />} />
           <Route path="email" element={<EmailComposer />} />
+          <Route path="reports" element={<MonthlyReport />} />
           <Route path="orders" element={<OrdersList />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="installation" element={<InstallationList />} />

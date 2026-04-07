@@ -5,6 +5,7 @@ import api from '../../utils/api';
 import { formatCurrency, formatDate, minutesSince } from '../../utils/helpers';
 import { LeadStatusBadge } from '../../components/StatusBadge';
 import { Lead, Followup } from '../../types';
+import MonthlyReport from './MonthlyReport';
 
 interface SalesSummary {
   leadsByStatus: { status: string; count: number }[];
@@ -170,6 +171,20 @@ export default function SalesDashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="card border-0 bg-transparent shadow-none p-0">
+        <div className="page-header mb-4">
+          <div>
+            <h2 className="page-title text-lg">Performance Charts</h2>
+            <p className="text-sm text-gray-500">Timeline-based trends for leads, payments, and orders.</p>
+          </div>
+          <Link to="reports" className="btn-secondary btn-sm md:btn">
+            <PieChart size={15} />
+            <span>Open Reports</span>
+          </Link>
+        </div>
+        <MonthlyReport embedded />
       </div>
 
       {/* Recent leads */}

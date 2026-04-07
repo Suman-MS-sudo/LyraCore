@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, Package, Factory,
-  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays, Mail
+  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays, Mail, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -15,6 +15,7 @@ const SALES_NAV: NavItem[] = [
   { label: 'Products',  path: '/sales/products',  icon: <Package size={16} /> },
   { label: 'Say Hi',    path: '/sales/sayhi',     icon: <Hand size={16} /> },
   { label: 'Campaigns',  path: '/sales/email',     icon: <Mail size={16} /> },
+  { label: 'Reports',   path: '/sales/reports',   icon: <BarChart3 size={16} /> },
 ];
 
 const PRODUCTION_NAV: NavItem[] = [
@@ -32,6 +33,7 @@ const MANAGEMENT_NAV: NavItem[] = [
   { label: 'Orders',       path: '/management/orders',          icon: <Factory size={16} /> },
   { label: 'Installation', path: '/management/installation',    icon: <Wrench size={16} /> },
   { label: 'Campaigns',    path: '/management/email',            icon: <Mail size={16} /> },
+  { label: 'Reports',      path: '/management/reports',          icon: <BarChart3 size={16} /> },
   { label: 'Attendance',   path: '/management/attendance',       icon: <CalendarDays size={16} /> },
   { label: 'Audit Logs',   path: '/management/audit',           icon: <ClipboardList size={16} /> },
   { label: 'Settings',     path: '/management/settings',        icon: <Settings size={16} /> },

@@ -66,6 +66,27 @@ router.get('/:phone', (req: AuthRequest, res: Response) => {
   const leads = db.prepare(query).all(...params);
   if (leads.length === 0) return res.status(404).json({ error: 'Customer not found' });
 
+  let quotationQuery = `
+    SELECT
+      q.*,
+      l.lead_number,
+      l.product_interest,
+      l.product_type,
+      l.status AS lead_status
+    FROM quotations q
+    INNER JOIN leads l ON l.id = q.lead_id
+    WHERE l.customer_phone = ?
+  `;
+  const quotationParams: any[] = [phone];
+
+  if (req.user?.role === 'sales') {
+    quotationQuery += ' AND l.assigned_to = ?';
+    quotationParams.push(req.user.id);
+  }
+
+  quotationQuery += ' ORDER BY q.created_at DESC';
+  const quotations = db.prepare(quotationQuery).all(...quotationParams);
+
   const customer = {
     phone,
     name:     (leads[0] as any).customer_name,
@@ -73,6 +94,7 @@ router.get('/:phone', (req: AuthRequest, res: Response) => {
     company:  (leads[0] as any).company,
     location: (leads[0] as any).location,
     leads,
+    quotations,
   };
   res.json(customer);
 });

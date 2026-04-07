@@ -29,6 +29,53 @@ interface CustomerDetail {
   company?: string;
   location?: string;
   leads: Lead[];
+  quotations: CustomerQuotation[];
+}
+
+interface CustomerQuotation {
+  id: string;
+  lead_id: string;
+  lead_number: string;
+  product_interest?: string;
+  product_type?: string;
+  lead_status: Lead['status'];
+  pi_number: string;
+  file_path?: string;
+  amount: number;
+  discount?: number;
+  freight_charges?: number;
+  installation_charges?: number;
+  validity_date?: string;
+  payment_confirmed: number;
+  payment_type?: 'full' | 'partial' | null;
+  amount_paid?: number;
+  created_at: string;
+}
+
+function getQuotationGrandTotal(q: CustomerQuotation) {
+  const afterDiscount = Number(q.amount || 0) - Number(q.discount || 0);
+  const freight = Number(q.freight_charges || 0);
+  const installation = Number(q.installation_charges || 0);
+
+  return afterDiscount + Math.round(afterDiscount * 0.18)
+    + (freight > 0 ? freight + Math.round(freight * 0.18) : 0)
+    + (installation > 0 ? installation + Math.round(installation * 0.18) : 0);
+}
+
+function getQuotationPaidAmount(q: CustomerQuotation) {
+  if (q.payment_confirmed) return getQuotationGrandTotal(q);
+  if (q.payment_type === 'partial') return Number(q.amount_paid || 0);
+  return 0;
+}
+
+function getQuotationStatus(q: CustomerQuotation) {
+  if (q.payment_confirmed) {
+    return { label: 'Paid', className: 'bg-green-50 text-green-700 border-green-200' };
+  }
+  if (q.payment_type === 'partial') {
+    return { label: 'Partially Paid', className: 'bg-amber-50 text-amber-700 border-amber-200' };
+  }
+  return { label: 'Awaiting Payment', className: 'bg-slate-50 text-slate-700 border-slate-200' };
 }
 
 export default function Customers() {
@@ -152,7 +199,7 @@ export default function Customers() {
       </div>
 
       {/* Customer Detail Modal */}
-      <Modal open={selected !== null || loadingDetail} onClose={() => { setSelected(null); setLoadingDetail(false); }} title={selected ? selected.name : 'Loading...'} size="lg">
+      <Modal open={selected !== null || loadingDetail} onClose={() => { setSelected(null); setLoadingDetail(false); }} title={selected ? selected.name : 'Loading...'} size="xl">
         {loadingDetail && !selected ? (
           <div className="text-center py-8 text-gray-400">Loading customer details...</div>
         ) : selected && (
@@ -175,28 +222,87 @@ export default function Customers() {
               </div>
             </div>
 
-            {/* Leads list */}
+            {/* Invoice table */}
             <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                All Leads ({selected.leads.length})
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Invoices / Quotations ({selected.quotations.length})
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="px-2 py-1 rounded-full bg-slate-100">Total {formatCurrency(selected.quotations.reduce((sum, q) => sum + getQuotationGrandTotal(q), 0))}</span>
+                  <span className="px-2 py-1 rounded-full bg-green-50 text-green-700">Paid {formatCurrency(selected.quotations.reduce((sum, q) => sum + getQuotationPaidAmount(q), 0))}</span>
+                </div>
               </div>
-              <div className="space-y-2">
-                {selected.leads.map((lead: any) => (
-                  <div key={lead.id} className="flex items-center justify-between gap-3 p-2.5 border rounded-md hover:bg-gray-50">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-gray-400">{lead.lead_number}</span>
-                      <LeadStatusBadge status={lead.status} />
-                      <span className="text-sm text-gray-700">{lead.product_interest}</span>
-                      {lead.product_type && <span className="text-xs text-gray-400">({lead.product_type})</span>}
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {lead.estimated_value && <span className="text-sm font-semibold text-emerald-600">{formatCurrency(lead.estimated_value)}</span>}
-                      <span className="text-xs text-gray-400">{formatDate(lead.created_at)}</span>
-                      <Link to={`${basePath}/leads/${lead.id}`} onClick={() => setSelected(null)} className="btn btn-secondary btn-sm">Open →</Link>
-                    </div>
+
+              {selected.quotations.length === 0 ? (
+                <div className="border rounded-lg py-8 text-center text-sm text-gray-400">No quotations created for this customer yet</div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr>
+                          <th className="table-th">Date</th>
+                          <th className="table-th">Invoice #</th>
+                          <th className="table-th">Lead</th>
+                          <th className="table-th">Product</th>
+                          <th className="table-th">Amount</th>
+                          <th className="table-th">Balance</th>
+                          <th className="table-th">Status</th>
+                          <th className="table-th"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.quotations.map((quotation) => {
+                          const grandTotal = getQuotationGrandTotal(quotation);
+                          const paidAmount = getQuotationPaidAmount(quotation);
+                          const balance = Math.max(grandTotal - paidAmount, 0);
+                          const status = getQuotationStatus(quotation);
+
+                          return (
+                            <tr key={quotation.id} className="table-tr">
+                              <td className="table-td whitespace-nowrap text-gray-500">{formatDate(quotation.created_at)}</td>
+                              <td className="table-td whitespace-nowrap">
+                                <div className="font-mono text-xs font-semibold text-blue-600">{quotation.pi_number}</div>
+                                <div className="text-xs text-gray-400">{quotation.lead_number}</div>
+                              </td>
+                              <td className="table-td whitespace-nowrap">
+                                <LeadStatusBadge status={quotation.lead_status} />
+                              </td>
+                              <td className="table-td min-w-[220px]">
+                                <div className="font-medium text-gray-800">{quotation.product_interest || '—'}</div>
+                                {quotation.product_type && <div className="text-xs text-gray-400">{quotation.product_type}</div>}
+                              </td>
+                              <td className="table-td whitespace-nowrap font-semibold text-gray-900">{formatCurrency(grandTotal)}</td>
+                              <td className="table-td whitespace-nowrap">
+                                <div className={`font-semibold ${balance > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                  {balance > 0 ? formatCurrency(balance) : 'Settled'}
+                                </div>
+                                {paidAmount > 0 && !quotation.payment_confirmed && (
+                                  <div className="text-xs text-gray-400">Paid {formatCurrency(paidAmount)}</div>
+                                )}
+                              </td>
+                              <td className="table-td whitespace-nowrap">
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${status.className}`}>
+                                  {status.label}
+                                </span>
+                              </td>
+                              <td className="table-td whitespace-nowrap">
+                                <div className="flex items-center gap-2 justify-end">
+                                  {quotation.file_path && (
+                                    <a href={`/${quotation.file_path}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">PI</a>
+                                  )}
+                                  <Link to={`${basePath}/leads/${quotation.lead_id}`} onClick={() => setSelected(null)} className="btn btn-secondary btn-sm">Open</Link>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}

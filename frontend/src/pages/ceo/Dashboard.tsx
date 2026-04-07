@@ -14,6 +14,7 @@ import {
 import api from '../../utils/api';
 import { formatCurrency, formatDate, LEAD_STATUS_CONFIG } from '../../utils/helpers';
 import { OrderStatusBadge } from '../../components/StatusBadge';
+import MonthlyReport from '../sales/MonthlyReport';
 
 const PIE_COLORS = ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#f97316','#6b7280'];
 
@@ -336,6 +337,20 @@ export default function CeoDashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card border-0 bg-transparent shadow-none p-0">
+        <div className="page-header mb-4">
+          <div>
+            <h2 className="page-title text-lg">Timeline Reports</h2>
+            <p className="text-sm text-gray-500">Leads, payments, and order trends with flexible date filters.</p>
+          </div>
+          <Link to="/management/reports" className="btn-secondary btn-sm md:btn">
+            <FileText size={15} />
+            <span>Open Full Reports</span>
+          </Link>
+        </div>
+        <MonthlyReport embedded />
       </div>
 
       {/* â”€â”€ Revenue + Lead Trend Charts â”€â”€ */}
