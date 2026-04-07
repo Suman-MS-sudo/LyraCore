@@ -401,6 +401,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
   const billAddr = cleanAddr(o.address || o.location || '');
   const shipAddr = cleanAddr(o.delivery_address || d.delivery_address || '');
   const logoUrl  = `${window.location.origin}/data/logo.png`;
+  const invoiceNo = d?.invoice_number || 'Pending';
 
   win.document.write(`<!DOCTYPE html><html><head><title>Dispatch Challan – ${o.order_number}</title>
   <meta charset="utf-8"/>
@@ -536,8 +537,9 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
       <div class="hdr-doc-title">Tax Invoice</div>
       <div class="hdr-doc-badge">Original for Buyer</div>
       <div class="hdr-doc-sub" style="margin-top:6px">
+        Invoice # <span>${invoiceNo}</span><br>
         Order # <span>${o.order_number}</span><br>
-        PI # <span>${o.pi_number || '—'}</span><br>
+        Quotation # <span>${o.pi_number || '—'}</span><br>
         ${o.lead_number ? `Lead # <span>${o.lead_number}</span><br>` : ''}
         Date &nbsp;<span>${fmt(d.dispatch_date)}</span>
       </div>
@@ -674,7 +676,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
         <tr><td>Service Contact</td><td>8122378860 &nbsp;·&nbsp; sales@lyraenterprise.co.in</td></tr>
       </table>
       <div class="warranty-note">
-        To claim warranty, quote Order # <strong>${o.order_number}</strong> and PI # <strong>${o.pi_number || '—'}</strong>.
+        To claim warranty, quote Invoice # <strong>${invoiceNo}</strong>, Order # <strong>${o.order_number}</strong> and Quotation # <strong>${o.pi_number || '—'}</strong>.
         Unit must be returned to our service centre or our technician will visit within 7 working days of complaint registration.
       </div>
     </div>
@@ -720,7 +722,7 @@ function printDispatchInvoice(o: any, d: any, catalog: { name: string; model_cod
   <!-- ══ FOOTER BAND ══ -->
   <div class="footer-band">
     <span>Lyra Enterprises &nbsp;·&nbsp; GSTIN: <strong>33DMYPR1025P1ZB</strong></span>
-    <span><strong>${o.order_number}</strong> &nbsp;·&nbsp; ${fmt(d.dispatch_date)}</span>
+    <span><strong>${invoiceNo}</strong> &nbsp;·&nbsp; ${fmt(d.dispatch_date)}</span>
   </div>
 
   <div style="text-align:center;padding:16px" class="np">

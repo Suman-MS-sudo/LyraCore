@@ -71,6 +71,8 @@ export default function LeadDetail() {
   const [showStatusModal, setShowStatusModal]       = useState(false);
   const [showFollowupModal, setShowFollowupModal]   = useState(false);
   const [showQuotationModal, setShowQuotationModal] = useState(false);
+  const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null);
+  const [editQuotation, setEditQuotation] = useState<Quotation | null>(null);
   const [showProductionModal, setShowProductionModal] = useState(false);
   const [reqEdit, setReqEdit]                       = useState(false);
   const [reqItems, setReqItems]                     = useState<SelectedItem[]>([]);
@@ -178,7 +180,7 @@ export default function LeadDetail() {
 
   // Auto-fill quotation form when modal opens
   useEffect(() => {
-    if (showQuotationModal && lead) {
+    if (showQuotationModal && lead && !viewQuotation && !editQuotation) {
       const d = new Date();
       d.setDate(d.getDate() + 15);
       const validityDefault = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
@@ -194,7 +196,7 @@ export default function LeadDetail() {
       }));
       setQuotationStep('form');
     }
-  }, [showQuotationModal]);
+  }, [showQuotationModal, lead, viewQuotation, editQuotation]);
 
   // Initialise reqItems from product_interest when edit mode opens
   useEffect(() => {
@@ -284,6 +286,79 @@ export default function LeadDetail() {
     finally { setSaving(false); }
   };
 
+  const handleViewQuotation = (q: Quotation) => {
+    setEditQuotation(null);
+    setViewQuotation(q);
+    setQuotationForm({
+      amount: String(q.amount || ''),
+      discount: String(q.discount || 0),
+      freight_charges: String(q.freight_charges || 0),
+      installation_charges: String(q.installation_charges || 0),
+      validity_date: q.validity_date || '',
+      payment_terms: q.payment_terms || '',
+      notes: q.notes || '',
+    });
+    setPreviewPiNumber(q.pi_number || '');
+    setQuotationFile(null);
+    setQuotationStep('review');
+    setShowQuotationModal(true);
+  };
+
+  const handleEditQuotation = (q: Quotation) => {
+    setViewQuotation(null);
+    setEditQuotation(q);
+    setQuotationForm({
+      amount: String(q.amount || ''),
+      discount: String(q.discount || 0),
+      freight_charges: String(q.freight_charges || 0),
+      installation_charges: String(q.installation_charges || 0),
+      validity_date: q.validity_date || '',
+      payment_terms: q.payment_terms || '50% advance, 50% on delivery',
+      notes: q.notes || '',
+    });
+    setPreviewPiNumber(q.pi_number || '');
+    setQuotationFile(null);
+    setQuotationStep('form');
+    setShowQuotationModal(true);
+  };
+
+  const handleUpdateQuotation = async () => {
+    if (!editQuotation) return;
+    if (!quotationForm.amount) return toast.error('Amount required');
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('amount', quotationForm.amount);
+      fd.append('discount', quotationForm.discount || '0');
+      fd.append('freight_charges', quotationForm.freight_charges || '0');
+      fd.append('installation_charges', quotationForm.installation_charges || '0');
+      fd.append('validity_date', quotationForm.validity_date);
+      fd.append('payment_terms', quotationForm.payment_terms);
+      fd.append('notes', quotationForm.notes);
+      if (quotationFile) fd.append('file', quotationFile);
+      const res = await api.patch(`/quotations/${editQuotation.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const updatedQuotation = res.data;
+
+      // Apply updated quotation immediately to prevent stale View state.
+      setLead(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          quotations: (prev.quotations || []).map(q => q.id === updatedQuotation.id ? { ...q, ...updatedQuotation } : q),
+        };
+      });
+      toast.success('Quotation updated');
+      setShowQuotationModal(false);
+      setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' });
+      setQuotationFile(null);
+      setQuotationStep('form');
+      setEditQuotation(null);
+      setViewQuotation(null);
+      await fetchLead();
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to update quotation'); }
+    finally { setSaving(false); }
+  };
+
   const handleConfirmPayment = (q: Quotation) => {
     const afterDisc = q.amount - (q.discount || 0);
     const freight   = q.freight_charges || 0;
@@ -301,9 +376,7 @@ export default function LeadDetail() {
   const handleDownloadPdf = async () => {
     if (!piPreviewRef.current) return;
     setDownloadingPdf(true);
-    const piNumber = previewPiNumber || (lead?.quotations?.length
-      ? `Q-${String(lead.quotations.length + 1).padStart(4, '0')}`
-      : 'Quotation');
+    const piNumber = previewPiNumber || 'LE-Quote-Pending';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opt: any = {
       margin:      [8, 8, 8, 8],
@@ -975,7 +1048,11 @@ export default function LeadDetail() {
                       {q.notes && <div className="text-xs text-gray-500 mt-1">{q.notes}</div>}
                     </div>
                     <div className="flex flex-col gap-1 shrink-0">
-                      {q.file_path && <a href={`/${q.file_path}`} target="_blank" className="btn btn-secondary btn-sm">📄 View</a>}
+                      <button onClick={() => handleViewQuotation(q)} className="btn btn-secondary btn-sm">👁 View</button>
+                      {canEdit && !q.payment_confirmed && (
+                        <button onClick={() => handleEditQuotation(q)} className="btn btn-primary btn-sm">✎ Edit</button>
+                      )}
+                      {q.file_path && <a href={`/${q.file_path}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">📄 PDF</a>}
                       {!q.payment_confirmed && canEdit && (
                         <button onClick={() => handleConfirmPayment(q)} className="btn btn-success btn-sm">✓ Confirm Payment</button>
                       )}
@@ -1098,7 +1175,7 @@ export default function LeadDetail() {
         </div>
       </Modal>
 
-      <Modal open={showQuotationModal} onClose={() => { setShowQuotationModal(false); setQuotationStep('form'); setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' }); setQuotationFile(null); }} title={quotationStep === 'review' ? 'Review Quotation' : 'Create Quotation / PI'} size="lg">
+      <Modal open={showQuotationModal} onClose={() => { setShowQuotationModal(false); setQuotationStep('form'); setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' }); setQuotationFile(null); setViewQuotation(null); setEditQuotation(null); }} title={quotationStep === 'review' ? (viewQuotation ? 'View Quotation' : (editQuotation ? 'Review Edited Quotation' : 'Review Quotation')) : (editQuotation ? 'Edit Quotation' : 'Create Quotation / PI')} size="lg">
         {quotationStep === 'form' ? (
         <div className="space-y-4">
 
@@ -1223,7 +1300,7 @@ export default function LeadDetail() {
           </div>
 
           <div className="flex gap-2 justify-end pt-1">
-            <button onClick={() => { setShowQuotationModal(false); setQuotationStep('form'); setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' }); setQuotationFile(null); }} className="btn btn-secondary">Cancel</button>
+            <button onClick={() => { setShowQuotationModal(false); setQuotationStep('form'); setQuotationForm({ amount: '', discount: '', freight_charges: '', installation_charges: '', validity_date: '', payment_terms: '', notes: '' }); setQuotationFile(null); setViewQuotation(null); setEditQuotation(null); }} className="btn btn-secondary">Cancel</button>
             <button
               disabled={!quotationForm.amount}
               onClick={async () => {
@@ -1327,7 +1404,7 @@ export default function LeadDetail() {
                     <table className="w-full">
                       <tbody>
                         <tr><td className="text-gray-400 pr-2 pb-0.5">Quotation No</td><td className="font-semibold text-gray-700">{previewPiNumber || 'Auto on save'}</td></tr>
-                        <tr><td className="text-gray-400 pr-2 pb-0.5">Date</td><td>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td></tr>
+                        <tr><td className="text-gray-400 pr-2 pb-0.5">Date</td><td>{viewQuotation ? formatDate(viewQuotation.created_at) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td></tr>
                         {quotationForm.validity_date && <tr><td className="text-gray-400 pr-2 pb-0.5">Valid Until</td><td className="font-semibold">{fmtDate(quotationForm.validity_date)}</td></tr>}
                         {quotationForm.payment_terms && <tr><td className="text-gray-400 pr-2 pb-0.5">Terms</td><td>{quotationForm.payment_terms}</td></tr>}
                       </tbody>
@@ -1443,7 +1520,13 @@ export default function LeadDetail() {
 
                 {/* Email recipient notice */}
                 <div className={`px-3 py-2 border-t border-gray-100 ${lead?.customer_email ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
-                  {lead?.customer_email ? <>✉ Will be emailed to <strong>{lead.customer_email}</strong></> : <>⚠ No email on file – will be saved only</>}
+                  {viewQuotation ? (
+                    Number((viewQuotation as any).email_sent || 0) === 1
+                      ? <>✉ Sent to <strong>{lead?.customer_email || 'customer'}</strong>{(viewQuotation as any).email_sent_at ? <> on {formatDateTime((viewQuotation as any).email_sent_at)}</> : null}</>
+                      : <>⚠ Not sent by email yet</>
+                  ) : (
+                    lead?.customer_email ? <>✉ Will be emailed to <strong>{lead.customer_email}</strong></> : <>⚠ No email on file – will be saved only</>
+                  )}
                 </div>
                 {quotationFile && <div className="px-3 py-1 text-gray-500">📎 {quotationFile.name}</div>}
 
@@ -1451,17 +1534,34 @@ export default function LeadDetail() {
 
               {/* Actions */}
               <div className="flex gap-2 justify-end flex-wrap">
-                <button onClick={() => setQuotationStep('form')} className="btn btn-secondary">← Edit</button>
+                {!viewQuotation && <button onClick={() => setQuotationStep('form')} className="btn btn-secondary">← Edit</button>}
                 <button onClick={handleDownloadPdf} disabled={downloadingPdf} className="btn btn-secondary">
                   {downloadingPdf ? '⏳ Generating…' : '⬇ Download PDF'}
                 </button>
-                <button onClick={() => handleUploadQuotation(false)} disabled={saving} className="btn btn-secondary">
-                  {saving ? 'Saving…' : 'Save Only'}
-                </button>
-                <button onClick={() => handleUploadQuotation(true)} disabled={saving || !lead?.customer_email}
-                  title={!lead?.customer_email ? 'No email on file' : ''} className="btn btn-primary">
-                  {saving ? 'Sending…' : `✉ Send to ${lead?.customer_email || 'customer'}`}
-                </button>
+                {viewQuotation ? (
+                  <>
+                    {viewQuotation.file_path && <a href={`/${viewQuotation.file_path}`} target="_blank" rel="noreferrer" className="btn btn-secondary">📄 Open PDF</a>}
+                    <button onClick={() => { setShowQuotationModal(false); setViewQuotation(null); }} className="btn btn-primary">Close</button>
+                  </>
+                ) : (
+                  <>
+                    {editQuotation ? (
+                      <button onClick={handleUpdateQuotation} disabled={saving} className="btn btn-primary">
+                        {saving ? 'Updating…' : 'Update Quotation'}
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => handleUploadQuotation(false)} disabled={saving} className="btn btn-secondary">
+                          {saving ? 'Saving…' : 'Save Only'}
+                        </button>
+                        <button onClick={() => handleUploadQuotation(true)} disabled={saving || !lead?.customer_email}
+                          title={!lead?.customer_email ? 'No email on file' : ''} className="btn btn-primary">
+                          {saving ? 'Sending…' : `✉ Send to ${lead?.customer_email || 'customer'}`}
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           );

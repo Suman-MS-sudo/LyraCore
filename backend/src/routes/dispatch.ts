@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../utils/audit';
 import { nowIST } from '../utils/date';
 import { sendDispatchInvoiceEmail } from '../utils/email';
+import { getNextFinancialYearNumber } from '../db/database';
 
 const router = Router();
 router.use(authenticate);
@@ -29,11 +30,12 @@ router.post('/:orderId', authorize('production', 'management'), (req: AuthReques
   if (!order) return res.status(404).json({ error: 'Order not found' });
 
   const id = uuidv4();
+  const invoice_number = getNextFinancialYearNumber('invoice');
   const dispNow = nowIST();
   db.prepare(`
-    INSERT INTO dispatch (id, production_order_id, transporter, lr_number, dispatch_date, expected_delivery_date, delivery_address, notes, updated_by, created_at, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
-  `).run(id, req.params.orderId, transporter, lr_number || null, dispatch_date, expected_delivery_date || null, delivery_address || null, notes || null, req.user?.id, dispNow, dispNow);
+    INSERT INTO dispatch (id, production_order_id, invoice_number, transporter, lr_number, dispatch_date, expected_delivery_date, delivery_address, notes, updated_by, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(id, req.params.orderId, invoice_number, transporter, lr_number || null, dispatch_date, expected_delivery_date || null, delivery_address || null, notes || null, req.user?.id, dispNow, dispNow);
 
   db.prepare(`UPDATE production_orders SET status = 'DISPATCHED', updated_at = datetime('now', '+5 hours', '+30 minutes') WHERE id = ?`).run(req.params.orderId);
   auditLog(req.user?.id, req.user?.name, 'DISPATCHED', 'dispatch', id, null, { transporter, lr_number, dispatch_date }, req.ip);
@@ -74,6 +76,13 @@ router.post('/:orderId/send-invoice-email', authorize('production', 'management'
   const dispatch = db.prepare('SELECT * FROM dispatch WHERE production_order_id = ? ORDER BY created_at DESC LIMIT 1').get(req.params.orderId) as any;
   if (!dispatch) return res.status(404).json({ error: 'No dispatch record found' });
 
+  if (!dispatch.invoice_number) {
+    const generatedInvoiceNo = getNextFinancialYearNumber('invoice');
+    db.prepare(`UPDATE dispatch SET invoice_number = ?, updated_at = datetime('now', '+5 hours', '+30 minutes') WHERE id = ?`)
+      .run(generatedInvoiceNo, dispatch.id);
+    dispatch.invoice_number = generatedInvoiceNo;
+  }
+
   const to = order.customer_email;
   if (!to) return res.status(400).json({ error: 'Customer has no email address on record' });
 
@@ -108,6 +117,7 @@ router.post('/:orderId/send-invoice-email', authorize('production', 'management'
       billAddress:      cleanAddr(order.address || order.location || ''),
       shipAddress:      cleanAddr(order.delivery_address || dispatch.delivery_address || ''),
       orderNumber:      order.order_number,
+      invoiceNumber:    dispatch.invoice_number,
       piNumber:         order.pi_number,
       leadNumber:       order.lead_number,
       dispatchDate:     dispatch.dispatch_date,

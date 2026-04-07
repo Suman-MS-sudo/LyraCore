@@ -141,6 +141,7 @@ export function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS dispatch (
       id TEXT PRIMARY KEY,
       production_order_id TEXT NOT NULL,
+      invoice_number TEXT,
       transporter TEXT NOT NULL,
       lr_number TEXT,
       dispatch_date TEXT NOT NULL,
@@ -369,6 +370,9 @@ export function initializeDatabase() {
     try { _db.run(`ALTER TABLE quotations ADD COLUMN ${col} ${type}`); } catch { /* exists */ }
   }
 
+  // Migration: add invoice_number to dispatch table
+  try { _db.run('ALTER TABLE dispatch ADD COLUMN invoice_number TEXT'); } catch { /* exists */ }
+
   // Migration: add defect_count to fabrication
   try { _db.run(`ALTER TABLE fabrication ADD COLUMN defect_count INTEGER DEFAULT 0`); } catch { /* exists */ }
 
@@ -468,4 +472,39 @@ export function getNextNumber(counterName: string, prefix: string): string {
   _db.run('UPDATE counters SET value = value + 1 WHERE name = ?', [counterName]);
   const row = _db.get('SELECT value FROM counters WHERE name = ?', [counterName]) as any;
   return `${prefix}${String(row.value).padStart(4, '0')}`;
+}
+
+function getCurrentISTDate(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+}
+
+function getFinancialYearLabel(date: Date = getCurrentISTDate()): string {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0-based
+  const fyStart = month >= 3 ? year : year - 1; // FY starts on April 1
+  return `${fyStart}-${fyStart + 1}`;
+}
+
+function ensureCounter(counterName: string) {
+  _db.run('INSERT OR IGNORE INTO counters(name, value) VALUES (?, 0)', [counterName]);
+}
+
+export function peekFinancialYearNumber(kind: 'quote' | 'invoice'): string {
+  const fy = getFinancialYearLabel();
+  const counterName = `${kind}_${fy}`;
+  ensureCounter(counterName);
+  const row = _db.get('SELECT value FROM counters WHERE name = ?', [counterName]) as any;
+  const next = (row?.value || 0) + 1;
+  const prefix = kind === 'quote' ? 'LE-Quote' : 'LE-Invoice';
+  return `${prefix}-${fy}-${String(next).padStart(5, '0')}`;
+}
+
+export function getNextFinancialYearNumber(kind: 'quote' | 'invoice'): string {
+  const fy = getFinancialYearLabel();
+  const counterName = `${kind}_${fy}`;
+  ensureCounter(counterName);
+  _db.run('UPDATE counters SET value = value + 1 WHERE name = ?', [counterName]);
+  const row = _db.get('SELECT value FROM counters WHERE name = ?', [counterName]) as any;
+  const prefix = kind === 'quote' ? 'LE-Quote' : 'LE-Invoice';
+  return `${prefix}-${fy}-${String(row.value).padStart(5, '0')}`;
 }

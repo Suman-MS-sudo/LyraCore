@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import db, { getNextNumber } from '../db/database';
+import db, { getNextFinancialYearNumber, peekFinancialYearNumber } from '../db/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../utils/audit';
 import { sendQuotationEmail, createTransporterForTest } from '../utils/email';
@@ -40,9 +40,7 @@ router.get('/lead/:leadId', (req: AuthRequest, res: Response) => {
 
 // GET next PI number preview (without incrementing the counter)
 router.get('/next-pi', authorize('sales', 'management'), (req: AuthRequest, res: Response) => {
-  const row = db.prepare("SELECT value FROM counters WHERE name = 'pi'").get() as any;
-  const next = (row?.value || 0) + 1;
-  res.json({ pi_number: `Q-${String(next).padStart(4, '0')}` });
+  res.json({ pi_number: peekFinancialYearNumber('quote') });
 });
 
 // POST create quotation
@@ -56,7 +54,7 @@ router.post('/', authorize('sales', 'management'), upload.single('file'), async 
     return res.status(403).json({ error: 'Access denied' });
 
   const id = uuidv4();
-  const pi_number = getNextNumber('pi', 'Q-');
+  const pi_number = getNextFinancialYearNumber('quote');
   const file_path = req.file ? `uploads/quotations/${req.file.filename}` : null;
   const discountVal = parseFloat(discount || '0') || 0;
   const amountVal = parseFloat(amount);
@@ -138,6 +136,77 @@ router.post('/', authorize('sales', 'management'), upload.single('file'), async 
   auditLog(req.user?.id, req.user?.name, 'CREATE', 'quotation', id, null, { lead_id, pi_number, amount: amountVal }, req.ip);
   const quotation = db.prepare('SELECT * FROM quotations WHERE id = ?').get(id);
   res.status(201).json({ ...quotation as object, emailStatus });
+});
+
+// PATCH update quotation
+router.patch('/:id', authorize('sales', 'management'), upload.single('file'), (req: AuthRequest, res: Response) => {
+  const quotation = db.prepare('SELECT * FROM quotations WHERE id = ?').get(req.params.id) as any;
+  if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
+  if (quotation.payment_confirmed) return res.status(400).json({ error: 'Cannot edit a payment-confirmed quotation' });
+
+  const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(quotation.lead_id) as any;
+  if (!lead) return res.status(404).json({ error: 'Lead not found' });
+  if (req.user?.role === 'sales' && lead.assigned_to !== req.user.id)
+    return res.status(403).json({ error: 'Access denied' });
+
+  const amountVal = parseFloat(req.body.amount);
+  if (!amountVal) return res.status(400).json({ error: 'amount required' });
+
+  const discountVal = parseFloat(req.body.discount || '0') || 0;
+  const freightVal = parseFloat(req.body.freight_charges || '0') || 0;
+  const installationVal = parseFloat(req.body.installation_charges || '0') || 0;
+  const validityDate = req.body.validity_date || null;
+  const paymentTerms = req.body.payment_terms || null;
+  const notes = req.body.notes || null;
+  const now = nowIST();
+
+  let nextFilePath = quotation.file_path;
+  if (req.file) {
+    nextFilePath = `uploads/quotations/${req.file.filename}`;
+    if (quotation.file_path) {
+      const oldPath = path.join(__dirname, '../../../', quotation.file_path);
+      try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); } catch { /* ignore */ }
+    }
+  }
+
+  db.prepare(`
+    UPDATE quotations
+    SET file_path = ?, amount = ?, discount = ?, freight_charges = ?, installation_charges = ?,
+        validity_date = ?, payment_terms = ?, notes = ?, updated_at = ?
+    WHERE id = ?
+  `).run(nextFilePath, amountVal, discountVal, freightVal, installationVal, validityDate, paymentTerms, notes, now, req.params.id);
+
+  auditLog(
+    req.user?.id,
+    req.user?.name,
+    'UPDATE',
+    'quotation',
+    req.params.id,
+    {
+      amount: quotation.amount,
+      discount: quotation.discount,
+      freight_charges: quotation.freight_charges,
+      installation_charges: quotation.installation_charges,
+      validity_date: quotation.validity_date,
+      payment_terms: quotation.payment_terms,
+      notes: quotation.notes,
+      file_path: quotation.file_path,
+    },
+    {
+      amount: amountVal,
+      discount: discountVal,
+      freight_charges: freightVal,
+      installation_charges: installationVal,
+      validity_date: validityDate,
+      payment_terms: paymentTerms,
+      notes,
+      file_path: nextFilePath,
+    },
+    req.ip
+  );
+
+  const updated = db.prepare('SELECT * FROM quotations WHERE id = ?').get(req.params.id);
+  res.json(updated);
 });
 
 // PATCH confirm payment (full or partial)

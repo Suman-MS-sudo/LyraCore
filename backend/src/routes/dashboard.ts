@@ -296,52 +296,62 @@ router.get('/ceo', (req: AuthRequest, res: Response) => {
 router.get('/monthly-report', (req: AuthRequest, res: Response) => {
   const IST_HOURS = '+5 hours';
   const IST_MINUTES = '+30 minutes';
-  const { fromDate, toDate } = req.query as any;
+  const { fromDate, toDate, granularity } = req.query as any;
 
   if (!fromDate || !toDate) {
     return res.status(400).json({ error: 'fromDate and toDate required (YYYY-MM-DD format)' });
   }
+
+  const normalizedGranularity = ['day', 'week', 'month'].includes(String(granularity || '').toLowerCase())
+    ? String(granularity).toLowerCase()
+    : 'day';
+
+  const bucketExpr = normalizedGranularity === 'month'
+    ? `strftime('%Y-%m', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))`
+    : normalizedGranularity === 'week'
+      ? `strftime('%Y-W%W', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))`
+      : `strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))`;
 
   const dateFilter = `
     AND datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}') >= datetime('${fromDate}', 'start of day', '${IST_HOURS}', '${IST_MINUTES}')
     AND datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}') <= datetime('${toDate}', 'start of day', '+1 day', '${IST_HOURS}', '${IST_MINUTES}')
   `;
 
-  // Monthly aggregated data for leads (by week or day based on range)
+  // Trend data grouped by selected granularity
   const leadsTrend = db.prepare(`
     SELECT
-      strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}')) AS date,
+      ${bucketExpr} AS date,
       COUNT(*) as total,
       COALESCE(SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END), 0) as closed,
       COALESCE(SUM(CASE WHEN status = 'LOST' THEN 1 ELSE 0 END), 0) as lost
     FROM leads
     WHERE 1=1 ${dateFilter}
-    GROUP BY strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))
+    GROUP BY ${bucketExpr}
     ORDER BY date ASC
   `).all();
 
   // Payments trend (quotations with payment_confirmed)
   const paymentsTrend = db.prepare(`
     SELECT
-      strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}')) AS date,
+      ${bucketExpr} AS date,
       COUNT(*) as count,
       COALESCE(SUM(amount), 0) as total
     FROM quotations
     WHERE payment_confirmed = 1 ${dateFilter}
-    GROUP BY strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))
+    GROUP BY ${bucketExpr}
     ORDER BY date ASC
   `).all();
 
   // Orders trend
   const ordersTrend = db.prepare(`
     SELECT
-      strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}')) AS date,
+      ${bucketExpr} AS date,
       COUNT(*) as total,
       COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END), 0) as completed,
       COALESCE(SUM(CASE WHEN status IN ('PENDING','FABRICATION','ASSEMBLY','TESTING','PACKAGING') THEN 1 ELSE 0 END), 0) as in_progress
     FROM production_orders
     WHERE 1=1 ${dateFilter}
-    GROUP BY strftime('%Y-%m-%d', datetime(created_at, '${IST_HOURS}', '${IST_MINUTES}'))
+    GROUP BY ${bucketExpr}
     ORDER BY date ASC
   `).all();
 
@@ -386,6 +396,7 @@ router.get('/monthly-report', (req: AuthRequest, res: Response) => {
 
   res.json({
     period: { fromDate, toDate },
+    granularity: normalizedGranularity,
     availableRange,
     leadsTrend,
     paymentsTrend,

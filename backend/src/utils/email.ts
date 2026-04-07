@@ -243,7 +243,7 @@ function buildQuotationHtml(d: QuotationEmailData): string {
     ${shipCell}
     <td style="width:33%;padding:12px 14px;vertical-align:top;border-left:1px solid #e5e7eb;">
       <table><tbody>
-        <tr><td style="padding:2px 0;font-size:11px;color:#6b7280;white-space:nowrap;">PI / Quotation No</td><td style="padding:2px 0 2px 10px;font-size:11px;font-weight:700;">${d.piNumber}</td></tr>
+        <tr><td style="padding:2px 0;font-size:11px;color:#6b7280;white-space:nowrap;">Quotation No</td><td style="padding:2px 0 2px 10px;font-size:11px;font-weight:700;">${d.piNumber}</td></tr>
         <tr><td style="padding:2px 0;font-size:11px;color:#6b7280;">Date</td><td style="padding:2px 0 2px 10px;font-size:11px;">${fmtDate(nowIST())}</td></tr>
         ${valRow}${termsRow}
       </tbody></table>
@@ -312,6 +312,7 @@ export interface DispatchInvoiceEmailData {
   customerGstin?: string;
   billAddress?: string;
   shipAddress?: string;
+  invoiceNumber?: string;
   orderNumber: string;
   piNumber?: string;
   leadNumber?: string;
@@ -437,8 +438,9 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
     <td style="padding:18px 22px;text-align:right;vertical-align:top;">
       <div style="font-size:20px;font-weight:900;color:#fff;letter-spacing:2px;text-transform:uppercase;">Tax Invoice</div>
       <div style="font-size:11px;color:#bfdbfe;margin-top:6px;line-height:2.0;">
+        ${d.invoiceNumber ? `Invoice # <strong style="color:#fff;">${d.invoiceNumber}</strong><br/>` : ''}
         Order # <strong style="color:#fff;">${d.orderNumber}</strong><br/>
-        ${d.piNumber ? `PI # <strong style="color:#fff;">${d.piNumber}</strong><br/>` : ''}
+        ${d.piNumber ? `Quotation # <strong style="color:#fff;">${d.piNumber}</strong><br/>` : ''}
         ${d.leadNumber ? `Lead # <strong style="color:#fff;">${d.leadNumber}</strong><br/>` : ''}
         Date <strong style="color:#fff;">${fmtDate(d.dispatchDate)}</strong>
       </div>
@@ -515,7 +517,7 @@ function buildDispatchInvoiceHtml(d: DispatchInvoiceEmailData): string {
     <tr><td style="padding:5px 14px;font-size:11.5px;color:#15803d;font-weight:600;width:160px;">Warranty Period</td><td style="padding:5px 14px;font-size:11.5px;"><strong>1 Year</strong> from date of dispatch</td></tr>
     <tr style="background:#f0fdf4;"><td style="padding:5px 14px;font-size:11.5px;color:#15803d;font-weight:600;">Warranty Start</td><td style="padding:5px 14px;font-size:11.5px;">${fmtDate(wStart.toISOString())}</td></tr>
     <tr><td style="padding:5px 14px;font-size:11.5px;color:#15803d;font-weight:600;">Warranty Expiry</td><td style="padding:5px 14px;font-size:11.5px;font-weight:700;">${fmtDate(wEnd.toISOString())}</td></tr>
-    <tr style="background:#f0fdf4;"><td colspan="2" style="padding:5px 14px;font-size:10.5px;color:#166534;font-style:italic;">To claim warranty, quote Order # <strong>${d.orderNumber}</strong>${d.piNumber ? ` and PI # <strong>${d.piNumber}</strong>` : ''}. Contact: ${co.phone} · ${co.email}</td></tr>
+    <tr style="background:#f0fdf4;"><td colspan="2" style="padding:5px 14px;font-size:10.5px;color:#166534;font-style:italic;">To claim warranty, quote Order # <strong>${d.orderNumber}</strong>${d.piNumber ? ` and Quotation # <strong>${d.piNumber}</strong>` : ''}. Contact: ${co.phone} · ${co.email}</td></tr>
   </table>
 
   <!-- FOOTER -->
@@ -540,11 +542,12 @@ export async function sendDispatchInvoiceEmail(data: DispatchInvoiceEmailData): 
   if (logoExists) attachments.push({ filename: 'logo.png', path: logoPath, cid: 'company-logo' });
 
   const coName = process.env.COMPANY_NAME || 'Lyra Enterprises';
+  const subjectId = data.invoiceNumber || data.orderNumber;
   await t.sendMail({
     from: `"${coName}" <${process.env.SMTP_USER}>`,
     to: data.to,
     bcc: process.env.SMTP_USER,
-    subject: `Tax Invoice ${data.orderNumber}${data.piNumber ? ' / ' + data.piNumber : ''} – ${coName}`,
+    subject: `Tax Invoice ${subjectId}${data.piNumber ? ' / ' + data.piNumber : ''} – ${coName}`,
     html: buildDispatchInvoiceHtml(data),
     attachments,
   });
