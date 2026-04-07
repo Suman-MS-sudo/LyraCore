@@ -14,7 +14,7 @@ import {
 import api from '../../utils/api';
 import { formatCurrency, formatDate, LEAD_STATUS_CONFIG } from '../../utils/helpers';
 import { OrderStatusBadge } from '../../components/StatusBadge';
-import MonthlyReport from '../sales/MonthlyReport';
+import MonthlyReport from '../sales/MonthlyReport.tsx';
 
 const PIE_COLORS = ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#f97316','#6b7280'];
 

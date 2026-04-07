@@ -5,7 +5,7 @@ import api from '../../utils/api';
 import { formatCurrency, formatDate, minutesSince } from '../../utils/helpers';
 import { LeadStatusBadge } from '../../components/StatusBadge';
 import { Lead, Followup } from '../../types';
-import MonthlyReport from './MonthlyReport';
+import MonthlyReport from './MonthlyReport.tsx';
 
 interface SalesSummary {
   leadsByStatus: { status: string; count: number }[];

@@ -12,7 +12,7 @@ import Customers from './pages/sales/Customers';
 import Products from './pages/sales/Products';
 import SayHi from './pages/sales/SayHi';
 import EmailComposer from './pages/sales/EmailComposer';
-import MonthlyReport from './pages/sales/MonthlyReport';
+import MonthlyReport from './pages/sales/MonthlyReport.tsx';
 
 // Production
 import ProductionDashboard from './pages/production/Dashboard';
