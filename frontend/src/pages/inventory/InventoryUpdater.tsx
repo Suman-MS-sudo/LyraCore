@@ -162,15 +162,17 @@ export default function InventoryUpdater() {
     }
   };
 
-  // Fallback: handle image upload
+  // Fallback: handle image upload as a real-time QR reader
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset file input so user can upload again without refresh
+    e.target.value = '';
     const img = document.createElement('img');
     img.src = URL.createObjectURL(file);
     await new Promise(r => (img.onload = r));
-    // Try BarcodeDetector first
     let qr: string | null = null;
+    // Try BarcodeDetector first
     // @ts-ignore
     if ('BarcodeDetector' in window) {
       try {
@@ -185,7 +187,8 @@ export default function InventoryUpdater() {
       qr = await decodeQRFromImage(img);
     }
     if (qr) {
-      processQR(qr);
+      toast.success(`QR detected: ${qr}`); // Debug: show raw QR value
+      await processQR(qr);
       return;
     }
     toast.error('Could not read QR code from image.');
