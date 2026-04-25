@@ -8,12 +8,13 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const _db = new Database(DB_PATH);
 
-// WAL mode allows concurrent reads alongside a single writer — eliminates
-// "database is locked" errors under normal concurrent HTTP request load.
-// busy_timeout makes SQLite retry for up to 5 s before giving up.
-_db.exec("PRAGMA journal_mode = WAL");
-_db.exec("PRAGMA busy_timeout = 5000");
-_db.exec("PRAGMA synchronous = NORMAL"); // safe with WAL, faster than FULL
+// Apply performance/concurrency PRAGMAs.
+// Wrapped in try/catch because during rolling deploys the migrate script
+// runs while the server may still be shutting down; if the DB is briefly
+// locked we skip — the running server already applied these on startup.
+try { _db.exec("PRAGMA busy_timeout = 5000"); } catch {}
+try { _db.exec("PRAGMA journal_mode = WAL"); } catch {}
+try { _db.exec("PRAGMA synchronous = NORMAL"); } catch {}
 
 // Compatibility shim that mimics better-sqlite3's prepare() API
 function prepare(sql: string) {

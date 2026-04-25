@@ -27,6 +27,10 @@ echo ">>> Rebuilding backend..."
 cd "$APP_DIR/backend"
 npm ci --silent
 npm run build
+
+echo ">>> Stopping backend before migration..."
+pm2 stop lyracore-backend 2>/dev/null || true
+
 echo ">>> Applying database migrations..."
 npm run migrate
 
