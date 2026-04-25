@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, Package, Factory,
-  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays, Mail, BarChart3
+  ClipboardList, Settings, LogOut, X, Wrench, Hand, CalendarDays, Mail, BarChart3, Boxes
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,19 +9,21 @@ interface NavItem { label: string; path: string; icon: React.ReactNode; }
 interface SidebarProps { isOpen: boolean; onClose: () => void; }
 
 const SALES_NAV: NavItem[] = [
-  { label: 'Dashboard', path: '/sales',          icon: <LayoutDashboard size={16} /> },
-  { label: 'Leads',     path: '/sales/leads',     icon: <Users size={16} /> },
-  { label: 'Customers', path: '/sales/customers', icon: <Building2 size={16} /> },
-  { label: 'Products',  path: '/sales/products',  icon: <Package size={16} /> },
-  { label: 'Say Hi',    path: '/sales/sayhi',     icon: <Hand size={16} /> },
+  { label: 'Dashboard',  path: '/sales',          icon: <LayoutDashboard size={16} /> },
+  { label: 'Leads',      path: '/sales/leads',     icon: <Users size={16} /> },
+  { label: 'Customers',  path: '/sales/customers', icon: <Building2 size={16} /> },
+  { label: 'Products',   path: '/sales/products',  icon: <Package size={16} /> },
+  { label: 'Say Hi',     path: '/sales/sayhi',     icon: <Hand size={16} /> },
   { label: 'Campaigns',  path: '/sales/email',     icon: <Mail size={16} /> },
-  { label: 'Reports',   path: '/sales/reports',   icon: <BarChart3 size={16} /> },
+  { label: 'Reports',    path: '/sales/reports',   icon: <BarChart3 size={16} /> },
+  { label: 'Inventory',  path: '/inventory',       icon: <Boxes size={16} /> },
 ];
 
 const PRODUCTION_NAV: NavItem[] = [
-  { label: 'Dashboard',    path: '/production',                icon: <LayoutDashboard size={16} /> },
+  { label: 'Dashboard',    path: '/production',               icon: <LayoutDashboard size={16} /> },
   { label: 'Orders',       path: '/production/orders',        icon: <Factory size={16} /> },
   { label: 'Installation', path: '/production/installation',  icon: <Wrench size={16} /> },
+  { label: 'Inventory',    path: '/inventory',                icon: <Boxes size={16} /> },
 ];
 
 const MANAGEMENT_NAV: NavItem[] = [
@@ -34,13 +36,16 @@ const MANAGEMENT_NAV: NavItem[] = [
   { label: 'Installation', path: '/management/installation',    icon: <Wrench size={16} /> },
   { label: 'Campaigns',    path: '/management/email',            icon: <Mail size={16} /> },
   { label: 'Reports',      path: '/management/reports',          icon: <BarChart3 size={16} /> },
-  { label: 'Attendance',   path: '/management/attendance',       icon: <CalendarDays size={16} /> },
-  { label: 'Audit Logs',   path: '/management/audit',           icon: <ClipboardList size={16} /> },
-  { label: 'Settings',     path: '/management/settings',        icon: <Settings size={16} /> },
+  { label: 'Attendance',        path: '/management/attendance',        icon: <CalendarDays size={16} /> },
+  { label: 'Audit Logs',        path: '/management/audit',             icon: <ClipboardList size={16} /> },
+  { label: 'Settings',          path: '/management/settings',          icon: <Settings size={16} /> },
+  { label: 'Inv. Manager',      path: '/management/inventory-manager', icon: <Boxes size={16} /> },
+  { label: 'Inv. Update',       path: '/inventory',                    icon: <Package size={16} /> },
 ];
 
 const INSTALLATION_NAV: NavItem[] = [
   { label: 'Installations', path: '/installation', icon: <Wrench size={16} /> },
+  { label: 'Inventory',     path: '/inventory',    icon: <Boxes size={16} /> },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -76,7 +81,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <NavLink
             key={item.path}
             to={item.path}
-            end={item.path === '/sales' || item.path === '/production' || item.path === '/management' || item.path === '/installation'}
+            end={item.path === '/sales' || item.path === '/production' || item.path === '/management' || item.path === '/installation' || item.path === '/inventory'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive

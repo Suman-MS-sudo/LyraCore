@@ -465,6 +465,54 @@ export function initializeDatabase() {
     _db.run('ALTER TABLE products ADD COLUMN gst_rate REAL NOT NULL DEFAULT 18');
   } catch { /* already exists */ }
 
+  // Migration: inventory_components + inventory_transactions tables
+  _db.run(`CREATE TABLE IF NOT EXISTS inventory_components (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    sku TEXT UNIQUE,
+    description TEXT,
+    unit TEXT NOT NULL DEFAULT 'pcs',
+    quantity INTEGER NOT NULL DEFAULT 0,
+    min_quantity INTEGER NOT NULL DEFAULT 0,
+    location TEXT,
+    supplier TEXT,
+    notes TEXT,
+    created_by TEXT NOT NULL,
+    updated_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes'))
+  )`);
+  _db.run(`CREATE TABLE IF NOT EXISTS inventory_transactions (
+    id TEXT PRIMARY KEY,
+    component_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    quantity_before INTEGER NOT NULL,
+    quantity_change INTEGER NOT NULL,
+    quantity_after INTEGER NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes'))
+  )`);
+
+  // Migration: inventory_units — one physical row per unit for per-sticker QR tracking
+  _db.run(`CREATE TABLE IF NOT EXISTS inventory_units (
+    id TEXT PRIMARY KEY,
+    component_id TEXT NOT NULL,
+    component_name TEXT NOT NULL,
+    sku TEXT,
+    unit_seq INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'available',
+    created_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '+30 minutes')),
+    used_at TEXT,
+    used_by_id TEXT,
+    used_by_name TEXT,
+    FOREIGN KEY (component_id) REFERENCES inventory_components(id) ON DELETE CASCADE
+  )`);
+  // Migration: add unit_seq to existing inventory_units table
+  try { _db.run('ALTER TABLE inventory_units ADD COLUMN unit_seq INTEGER NOT NULL DEFAULT 0'); } catch { /* already exists */ };
+
   console.log('Database initialized successfully.');
 }
 

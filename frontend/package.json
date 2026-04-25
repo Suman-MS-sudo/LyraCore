@@ -12,7 +12,9 @@
     "axios": "^1.6.8",
     "date-fns": "^3.3.1",
     "html2pdf.js": "^0.14.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.575.0",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.51.0",
@@ -22,6 +24,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-basic-ssl": "^1.2.0",

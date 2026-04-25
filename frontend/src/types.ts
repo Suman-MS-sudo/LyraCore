@@ -194,3 +194,63 @@ export interface AuditLog {
   new_values?: string;
   created_at: string;
 }
+
+export interface InventoryComponent {
+  id: string;
+  name: string;
+  category?: string;
+  sku?: string;
+  description?: string;
+  unit: string;
+  quantity: number;
+  min_quantity: number;
+  location?: string;
+  supplier?: string;
+  notes?: string;
+  created_by: string;
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  component_id: string;
+  component_name?: string;
+  sku?: string;
+  unit?: string;
+  user_id: string;
+  user_name: string;
+  type: 'ADD' | 'SUBTRACT' | 'SET' | 'INITIAL' | 'QR_SCAN' | 'FAILED';
+  quantity_before: number;
+  quantity_change: number;
+  quantity_after: number;
+  notes?: string;
+  created_at: string;
+}
+
+export interface InventoryUnit {
+  id: string;
+  component_id: string;
+  component_name: string;
+  sku?: string;
+  unit_seq: number;
+  status: 'available' | 'used' | 'failed';
+  created_at: string;
+  used_at?: string;
+  used_by_id?: string;
+  used_by_name?: string;
+  // joined from inventory_components when fetched via /unit/:id
+  current_stock?: number;
+  stock_unit?: string;
+  location?: string;
+  min_quantity?: number;
+}
+
+export interface ComponentStats {
+  total_bought: number;
+  in_stock: number;
+  used_count: number;
+  failed_count: number;
+  purchase_history: InventoryTransaction[];
+}

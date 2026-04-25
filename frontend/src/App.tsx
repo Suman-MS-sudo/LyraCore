@@ -25,6 +25,11 @@ import CeoDashboard from './pages/ceo/Dashboard';
 import AuditLogs from './pages/ceo/AuditLogs';
 import Settings from './pages/ceo/Settings';
 import Attendance from './pages/ceo/Attendance';
+import InventoryDashboard from './pages/ceo/InventoryDashboard';
+
+// Shared (all roles)
+import InventoryUpdater from './pages/inventory/InventoryUpdater';
+import UnitScanPage from './pages/inventory/UnitScanPage';
 
 function RoleRoute({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { user } = useAuth();
@@ -91,11 +96,18 @@ export default function App() {
           <Route path="orders" element={<OrdersList />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="installation" element={<InstallationList />} />
+          <Route path="inventory-manager" element={<InventoryDashboard />} />
         </Route>
 
         {/* Installation Role Routes */}
         <Route path="/installation" element={<RoleRoute roles={['installation', 'management']}><Layout /></RoleRoute>}>
           <Route index element={<InstallationList />} />
+        </Route>
+
+        {/* Inventory — accessible to all roles */}
+        <Route path="/inventory" element={<RoleRoute roles={['sales', 'production', 'management', 'installation']}><Layout /></RoleRoute>}>
+          <Route index element={<InventoryUpdater />} />
+          <Route path="use" element={<UnitScanPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

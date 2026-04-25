@@ -19,6 +19,7 @@ import customersRoute from './routes/customers';
 import sayhiRoute from './routes/sayhi';
 import attendanceRoute from './routes/attendance';
 import emailCampaignsRoute from './routes/emailcampaigns';
+import inventoryRoute from './routes/inventory';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,6 +51,7 @@ app.use('/api/customers', customersRoute);
 app.use('/api/sayhi', sayhiRoute);
 app.use('/api/attendance', attendanceRoute);
 app.use('/api/emailcampaigns', emailCampaignsRoute);
+app.use('/api/inventory', inventoryRoute);
 
 // Health
 app.get('/health', (_, res) => res.json({ status: 'OK', time: new Date().toISOString() }));

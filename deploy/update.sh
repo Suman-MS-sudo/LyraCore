@@ -8,8 +8,14 @@ set -e
 
 APP_DIR="/var/www/lyracore"
 
-export NVM_DIR="$HOME/.nvm"
+# node/npm/pm2 live under suman's nvm — always source from there
+export NVM_DIR="/home/suman/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+if ! command -v npm &>/dev/null; then
+  echo "ERROR: npm not found. Run this script as suman or via: sudo -u suman bash deploy/update.sh"
+  exit 1
+fi
 
 # Limit Node heap to avoid OOM on low-RAM servers (e2-micro)
 export NODE_OPTIONS="--max-old-space-size=512"
@@ -31,7 +37,14 @@ npm ci --silent
 npm run build
 
 echo ">>> Restarting backend..."
-pm2 restart lyracore-backend
+if pm2 list 2>/dev/null | grep -q lyracore-backend; then
+  pm2 restart lyracore-backend
+else
+  echo "  (pm2 process not running — starting fresh)"
+  cd "$APP_DIR"
+  pm2 start ecosystem.config.js
+  pm2 save
+fi
 
 echo ""
 echo "Done! Changes are live."
