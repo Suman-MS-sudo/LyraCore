@@ -30,20 +30,25 @@ export default function SalesDashboard() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Camera scan logic (real-time, with fallback)
+  // Camera scan logic (real-time, with fallback, always shows modal)
+  const streamRef = useRef<MediaStream | null>(null);
+  const [scanLoopActive, setScanLoopActive] = useState(false);
   const startCameraScan = async () => {
     setQrModalOpen(true);
     setScanning(true);
     setCameraActive(true);
+    setScanLoopActive(true);
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
         await videoRef.current.play();
       }
       let found = false;
-      while (!found && cameraActive) {
+      while (!found && cameraActive && scanLoopActive) {
         await new Promise(r => setTimeout(r, 200));
         if (!videoRef.current) break;
         const canvas = document.createElement('canvas');
@@ -79,9 +84,11 @@ export default function SalesDashboard() {
         if (qrRaw) {
           found = true;
           if (stream) stream.getTracks().forEach(t => t.stop());
+          streamRef.current = null;
           setScanning(false);
           setCameraActive(false);
           setQrModalOpen(false);
+          setScanLoopActive(false);
           toast.success(`QR detected: ${qrRaw}`);
           // TODO: Call API or update count here
           return;
@@ -90,14 +97,30 @@ export default function SalesDashboard() {
       // If modal closed, stop camera
       if (!found && stream) {
         stream.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
         setScanning(false);
         setCameraActive(false);
+        setScanLoopActive(false);
       }
     } catch (e) {
       if (stream) stream.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
       setScanning(false);
       setCameraActive(false);
+      setScanLoopActive(false);
       toast.error('Camera or QR scan failed.');
+    }
+  };
+
+  // Cancel/close modal and stop camera
+  const handleCloseQrModal = () => {
+    setQrModalOpen(false);
+    setCameraActive(false);
+    setScanLoopActive(false);
+    setScanning(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
   };
   const [data, setData] = useState<SalesSummary | null>(null);
@@ -142,10 +165,11 @@ export default function SalesDashboard() {
         </Link>
       </div>
 
-      <Modal open={qrModalOpen} onClose={() => { setQrModalOpen(false); setCameraActive(false); }} title="Scan QR Code">
+      <Modal open={qrModalOpen} onClose={handleCloseQrModal} title="Scan QR Code">
         <div className="flex flex-col items-center gap-4">
           <video ref={videoRef} style={{ width: '100%', maxWidth: 400, borderRadius: 12, background: '#000' }} autoPlay muted playsInline />
           <div className="text-xs text-gray-500">Align QR code in the frame</div>
+          <button className="btn btn-danger mt-2" onClick={handleCloseQrModal} disabled={!cameraActive && !scanning}>Cancel</button>
         </div>
       </Modal>
 
