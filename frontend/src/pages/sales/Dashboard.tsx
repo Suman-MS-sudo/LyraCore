@@ -29,15 +29,27 @@ export default function SalesDashboard() {
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Camera scan logic (real-time, with fallback)
-  // Camera scan logic (real-time, with fallback, always shows modal)
+  // Camera scan logic (real-time, with BarcodeDetector + jsQR fallback)
   const streamRef = useRef<MediaStream | null>(null);
-  const [scanLoopActive, setScanLoopActive] = useState(false);
+  // Use a ref for loop control so the async loop always reads the current value
+  // (React state is stale inside closures — refs are not)
+  const shouldScanRef = useRef(false);
+
+  const stopCamera = () => {
+    shouldScanRef.current = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setScanning(false);
+    setCameraActive(false);
+  };
+
   const startCameraScan = async () => {
     setQrModalOpen(true);
     setScanning(true);
     setCameraActive(true);
-    setScanLoopActive(true);
+    shouldScanRef.current = true;
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -47,82 +59,65 @@ export default function SalesDashboard() {
         videoRef.current.setAttribute('playsinline', 'true');
         await videoRef.current.play();
       }
-      let found = false;
-      while (!found && cameraActive && scanLoopActive) {
+      // Create BarcodeDetector once (not inside the loop) for efficiency
+      // @ts-ignore
+      const barcodeDetector = ('BarcodeDetector' in window)
+        // @ts-ignore
+        ? (() => { try { return new window.BarcodeDetector({ formats: ['qr_code'] }); } catch { return null; } })()
+        : null;
+
+      while (shouldScanRef.current) {
         await new Promise(r => setTimeout(r, 200));
-        if (!videoRef.current) break;
+        if (!shouldScanRef.current) break;
+        if (!videoRef.current || videoRef.current.videoWidth === 0) continue;
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
         canvas.getContext('2d')!.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         let qrRaw: string | null = null;
-        // Try BarcodeDetector if available
-        if ('BarcodeDetector' in window) {
+        // Try BarcodeDetector if available (Chrome/Android — fastest)
+        if (barcodeDetector) {
           try {
             // @ts-ignore
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-            // @ts-ignore
-            const barcodes = await detector.detect(canvas);
-            if (barcodes.length > 0) {
-              qrRaw = barcodes[0].rawValue;
-            }
+            const barcodes = await barcodeDetector.detect(canvas);
+            if (barcodes.length > 0) qrRaw = barcodes[0].rawValue;
           } catch {}
         }
-        // Fallback to jsQR if needed
+        // Fallback to jsQR
         if (!qrRaw) {
           try {
             const ctx = canvas.getContext('2d');
             if (ctx) {
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
               const code = jsQR(imageData.data, imageData.width, imageData.height);
-              if (code && code.data) {
-                qrRaw = code.data;
-              }
+              if (code?.data) qrRaw = code.data;
             }
           } catch {}
         }
         if (qrRaw) {
-          found = true;
-          if (stream) stream.getTracks().forEach(t => t.stop());
-          streamRef.current = null;
-          setScanning(false);
-          setCameraActive(false);
+          stopCamera();
           setQrModalOpen(false);
-          setScanLoopActive(false);
           toast.success(`QR detected: ${qrRaw}`);
           // TODO: Call API or update count here
           return;
         }
       }
-      // If modal closed, stop camera
-      if (!found && stream) {
-        stream.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-        setScanning(false);
-        setCameraActive(false);
-        setScanLoopActive(false);
-      }
-    } catch (e) {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      setScanning(false);
-      setCameraActive(false);
-      setScanLoopActive(false);
-      toast.error('Camera or QR scan failed.');
+      // Loop exited because shouldScanRef was set to false (modal closed)
+      stopCamera();
+    } catch {
+      stopCamera();
+      toast.error('Camera or QR scan failed. Check camera permissions.');
     }
   };
 
   // Cancel/close modal and stop camera
   const handleCloseQrModal = () => {
     setQrModalOpen(false);
-    setCameraActive(false);
-    setScanLoopActive(false);
-    setScanning(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
+    stopCamera();
   };
+
+  // Stop camera if the component unmounts while scanning
+  useEffect(() => () => stopCamera(), []);
   const [data, setData] = useState<SalesSummary | null>(null);
   const [dueFollowups, setDueFollowups] = useState<(Followup & { customer_name: string; lead_number: string })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,8 +163,11 @@ export default function SalesDashboard() {
       <Modal open={qrModalOpen} onClose={handleCloseQrModal} title="Scan QR Code">
         <div className="flex flex-col items-center gap-4">
           <video ref={videoRef} style={{ width: '100%', maxWidth: 400, borderRadius: 12, background: '#000' }} autoPlay muted playsInline />
+          {!cameraActive && (
+            <div className="text-xs text-yellow-600 bg-yellow-50 rounded px-2 py-1">Camera not active. Check camera permissions.</div>
+          )}
           <div className="text-xs text-gray-500">Align QR code in the frame</div>
-          <button className="btn btn-danger mt-2" onClick={handleCloseQrModal} disabled={!cameraActive && !scanning}>Cancel</button>
+          <button className="btn btn-danger mt-2" onClick={handleCloseQrModal}>Cancel</button>
         </div>
       </Modal>
 
