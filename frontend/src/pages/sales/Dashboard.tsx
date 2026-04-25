@@ -45,69 +45,18 @@ export default function SalesDashboard() {
     setCameraActive(false);
   };
 
-  const startCameraScan = async () => {
+  // startCameraScan is now synchronous — just opens the modal.
+  // The actual camera work runs in the useEffect below, which fires AFTER
+  // React renders the modal and videoRef.current is guaranteed to be set.
+  const startCameraScan = () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('Camera not available. HTTPS is required for camera access.');
+      return;
+    }
+    shouldScanRef.current = true;
     setQrModalOpen(true);
     setScanning(true);
     setCameraActive(true);
-    shouldScanRef.current = true;
-    let stream: MediaStream | null = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-      }
-      // Create BarcodeDetector once (not inside the loop) for efficiency
-      // @ts-ignore
-      const barcodeDetector = ('BarcodeDetector' in window)
-        // @ts-ignore
-        ? (() => { try { return new window.BarcodeDetector({ formats: ['qr_code'] }); } catch { return null; } })()
-        : null;
-
-      while (shouldScanRef.current) {
-        await new Promise(r => setTimeout(r, 200));
-        if (!shouldScanRef.current) break;
-        if (!videoRef.current || videoRef.current.videoWidth === 0) continue;
-        const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        canvas.getContext('2d')!.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        let qrRaw: string | null = null;
-        // Try BarcodeDetector if available (Chrome/Android — fastest)
-        if (barcodeDetector) {
-          try {
-            // @ts-ignore
-            const barcodes = await barcodeDetector.detect(canvas);
-            if (barcodes.length > 0) qrRaw = barcodes[0].rawValue;
-          } catch {}
-        }
-        // Fallback to jsQR
-        if (!qrRaw) {
-          try {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height);
-              if (code?.data) qrRaw = code.data;
-            }
-          } catch {}
-        }
-        if (qrRaw) {
-          stopCamera();
-          setQrModalOpen(false);
-          toast.success(`QR detected: ${qrRaw}`);
-          // TODO: Call API or update count here
-          return;
-        }
-      }
-      // Loop exited because shouldScanRef was set to false (modal closed)
-      stopCamera();
-    } catch {
-      stopCamera();
-      toast.error('Camera or QR scan failed. Check camera permissions.');
-    }
   };
 
   // Cancel/close modal and stop camera
@@ -115,6 +64,76 @@ export default function SalesDashboard() {
     setQrModalOpen(false);
     stopCamera();
   };
+
+  // Camera initialisation — runs after React renders the modal so videoRef.current is set.
+  useEffect(() => {
+    if (!qrModalOpen) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play();
+        }
+
+        // Create BarcodeDetector once — much cheaper than per-frame
+        // @ts-ignore
+        const barcodeDetector = ('BarcodeDetector' in window)
+          // @ts-ignore
+          ? (() => { try { return new window.BarcodeDetector({ formats: ['qr_code'] }); } catch { return null; } })()
+          : null;
+
+        while (shouldScanRef.current && !cancelled) {
+          await new Promise(r => setTimeout(r, 200));
+          if (!shouldScanRef.current || cancelled) break;
+          if (!videoRef.current || videoRef.current.videoWidth === 0) continue;
+          const canvas = document.createElement('canvas');
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          canvas.getContext('2d')!.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          let qrRaw: string | null = null;
+          if (barcodeDetector) {
+            try {
+              // @ts-ignore
+              const barcodes = await barcodeDetector.detect(canvas);
+              if (barcodes.length > 0) qrRaw = barcodes[0].rawValue;
+            } catch {}
+          }
+          if (!qrRaw) {
+            try {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code?.data) qrRaw = code.data;
+              }
+            } catch {}
+          }
+          if (qrRaw) {
+            stopCamera();
+            setQrModalOpen(false);
+            toast.success(`QR detected: ${qrRaw}`);
+            // TODO: Call API or update count here
+            return;
+          }
+        }
+        if (!cancelled) stopCamera();
+      } catch {
+        if (!cancelled) {
+          stopCamera();
+          toast.error('Camera access denied or unavailable. Check permissions.');
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [qrModalOpen]);
 
   // Stop camera if the component unmounts while scanning
   useEffect(() => () => stopCamera(), []);
