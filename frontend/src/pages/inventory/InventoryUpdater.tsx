@@ -7,6 +7,7 @@ import { printStickerSheet } from '../../utils/printStickers';
 import api from '../../utils/api';
 import { InventoryComponent, ComponentStats } from '../../types';
 import { decodeQRFromImage } from '../../utils/jsqr-decode';
+import jsQR from 'jsqr';
 
 type UpdateMode = 'ADD' | 'SUBTRACT' | 'SET';
 
@@ -129,16 +130,16 @@ export default function InventoryUpdater() {
     setQrModalOpen(true);
   };
 
-  // Camera scan logic (real-time)
+  // Camera scan logic (real-time, with fallback)
   const startCameraScan = async () => {
     setQrModalOpen(false);
     setScanning(true);
     setCameraActive(true);
+    let stream: MediaStream | null = null;
+    let video: HTMLVideoElement | null = null;
     try {
-      // @ts-ignore
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      const video = document.createElement('video');
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video = document.createElement('video');
       video.srcObject = stream;
       video.setAttribute('playsinline', 'true');
       await video.play();
@@ -149,14 +150,37 @@ export default function InventoryUpdater() {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // @ts-ignore
-        const barcodes = await detector.detect(canvas);
-        if (barcodes.length > 0) {
+        let qrRaw: string | null = null;
+        // Try BarcodeDetector if available
+        if ('BarcodeDetector' in window) {
+          try {
+            // @ts-ignore
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            // @ts-ignore
+            const barcodes = await detector.detect(canvas);
+            if (barcodes.length > 0) {
+              qrRaw = barcodes[0].rawValue;
+            }
+          } catch {}
+        }
+        // Fallback to jsQR if needed
+        if (!qrRaw) {
+          try {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height);
+              if (code && code.data) {
+                qrRaw = code.data;
+              }
+            }
+          } catch {}
+        }
+        if (qrRaw) {
           found = true;
-          const raw = barcodes[0].rawValue;
           stream.getTracks().forEach(t => t.stop());
           video.remove();
-          await processQR(raw);
+          await processQR(qrRaw);
           setScanning(false);
           setCameraActive(false);
           return;
@@ -170,6 +194,8 @@ export default function InventoryUpdater() {
         setCameraActive(false);
       }
     } catch (e) {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (video) video.remove();
       setScanning(false);
       setCameraActive(false);
       toast.error('Camera or QR scan failed.');
@@ -257,7 +283,7 @@ export default function InventoryUpdater() {
             <button
               className="btn btn-primary"
               onClick={startCameraScan}
-              disabled={scanning || !(window as any).BarcodeDetector}
+              disabled={scanning}
             >
               <QrCode size={18} /> Use Camera
             </button>
@@ -268,9 +294,6 @@ export default function InventoryUpdater() {
             >
               Upload QR Image
             </button>
-            {!(window as any).BarcodeDetector && (
-              <div className="text-xs text-red-500">Live camera scan not supported in this browser. Use image upload instead.</div>
-            )}
           </div>
         </Modal>
         <input
