@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Users, CheckCircle2, Percent, DollarSign, PieChart, Bell, Plus } from 'lucide-react';
+import { TrendingUp, Users, CheckCircle2, Percent, DollarSign, PieChart, Bell, Plus, QrCode } from 'lucide-react';
 import api from '../../utils/api';
+import Modal from '../../components/Modal';
+import jsQR from 'jsqr';
+import toast from 'react-hot-toast';
 import { formatCurrency, formatDate, minutesSince } from '../../utils/helpers';
 import { LeadStatusBadge } from '../../components/StatusBadge';
 import { Lead, Followup } from '../../types';
@@ -21,6 +24,82 @@ interface SalesSummary {
 }
 
 export default function SalesDashboard() {
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Camera scan logic (real-time, with fallback)
+  const startCameraScan = async () => {
+    setQrModalOpen(true);
+    setScanning(true);
+    setCameraActive(true);
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+      }
+      let found = false;
+      while (!found && cameraActive) {
+        await new Promise(r => setTimeout(r, 200));
+        if (!videoRef.current) break;
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        canvas.getContext('2d')!.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        let qrRaw: string | null = null;
+        // Try BarcodeDetector if available
+        if ('BarcodeDetector' in window) {
+          try {
+            // @ts-ignore
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            // @ts-ignore
+            const barcodes = await detector.detect(canvas);
+            if (barcodes.length > 0) {
+              qrRaw = barcodes[0].rawValue;
+            }
+          } catch {}
+        }
+        // Fallback to jsQR if needed
+        if (!qrRaw) {
+          try {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height);
+              if (code && code.data) {
+                qrRaw = code.data;
+              }
+            }
+          } catch {}
+        }
+        if (qrRaw) {
+          found = true;
+          if (stream) stream.getTracks().forEach(t => t.stop());
+          setScanning(false);
+          setCameraActive(false);
+          setQrModalOpen(false);
+          toast.success(`QR detected: ${qrRaw}`);
+          // TODO: Call API or update count here
+          return;
+        }
+      }
+      // If modal closed, stop camera
+      if (!found && stream) {
+        stream.getTracks().forEach(t => t.stop());
+        setScanning(false);
+        setCameraActive(false);
+      }
+    } catch (e) {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      setScanning(false);
+      setCameraActive(false);
+      toast.error('Camera or QR scan failed.');
+    }
+  };
   const [data, setData] = useState<SalesSummary | null>(null);
   const [dueFollowups, setDueFollowups] = useState<(Followup & { customer_name: string; lead_number: string })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,12 +129,25 @@ export default function SalesDashboard() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="page-header">
-        <h1 className="page-title">Sales Dashboard</h1>
+      <div className="page-header flex items-center gap-2 justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="page-title">Sales Dashboard</h1>
+          <button className="btn btn-secondary flex items-center gap-2" onClick={startCameraScan} disabled={scanning}>
+            <QrCode size={18} />
+            {scanning ? 'Scanning…' : 'Scan QR'}
+          </button>
+        </div>
         <Link to="leads/new" className="btn-primary btn-sm md:btn">
           <Plus size={15} /><span className="hidden sm:inline">New Lead</span><span className="sm:hidden">New</span>
         </Link>
       </div>
+
+      <Modal open={qrModalOpen} onClose={() => { setQrModalOpen(false); setCameraActive(false); }} title="Scan QR Code">
+        <div className="flex flex-col items-center gap-4">
+          <video ref={videoRef} style={{ width: '100%', maxWidth: 400, borderRadius: 12, background: '#000' }} autoPlay muted playsInline />
+          <div className="text-xs text-gray-500">Align QR code in the frame</div>
+        </div>
+      </Modal>
 
       {/* ── 🚨 Hot Leads — new leads not contacted within 5 min ── */}
       {data.hotLeads?.length > 0 && (
