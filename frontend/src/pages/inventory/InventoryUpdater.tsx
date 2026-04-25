@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import Modal from '../../components/Modal';
 import { useSearchParams } from 'react-router-dom';
 import { Search, QrCode, Printer, Plus, Minus, Hash, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -39,6 +40,8 @@ export default function InventoryUpdater() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
 
   useEffect(() => {
     api.get('/inventory').then(r => setComponents(r.data));
@@ -121,44 +124,55 @@ export default function InventoryUpdater() {
 
   const previewQty = preview();
 
-  // Scan QR handler
-  const handleScanQR = async () => {
-    if ('BarcodeDetector' in window) {
-      setScanning(true);
-      try {
+  // Scan QR handler: open modal to choose method
+  const handleScanQR = () => {
+    setQrModalOpen(true);
+  };
+
+  // Camera scan logic (real-time)
+  const startCameraScan = async () => {
+    setQrModalOpen(false);
+    setScanning(true);
+    setCameraActive(true);
+    try {
+      // @ts-ignore
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.setAttribute('playsinline', 'true');
+      await video.play();
+      let found = false;
+      while (!found && cameraActive) {
+        await new Promise(r => setTimeout(r, 200));
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
         // @ts-ignore
-        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.setAttribute('playsinline', 'true');
-        await video.play();
-        let found = false;
-        while (!found) {
-          await new Promise(r => setTimeout(r, 300));
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
-          // @ts-ignore
-          const barcodes = await detector.detect(canvas);
-          if (barcodes.length > 0) {
-            found = true;
-            const raw = barcodes[0].rawValue;
-            stream.getTracks().forEach(t => t.stop());
-            video.remove();
-            processQR(raw);
-            setScanning(false);
-            return;
-          }
+        const barcodes = await detector.detect(canvas);
+        if (barcodes.length > 0) {
+          found = true;
+          const raw = barcodes[0].rawValue;
+          stream.getTracks().forEach(t => t.stop());
+          video.remove();
+          await processQR(raw);
+          setScanning(false);
+          setCameraActive(false);
+          return;
         }
-      } catch (e) {
-        setScanning(false);
-        toast.error('Camera or QR scan failed.');
       }
-    } else {
-      // Fallback: file input
-      fileInputRef.current?.click();
+      // If modal closed, stop camera
+      if (!found) {
+        stream.getTracks().forEach(t => t.stop());
+        video.remove();
+        setScanning(false);
+        setCameraActive(false);
+      }
+    } catch (e) {
+      setScanning(false);
+      setCameraActive(false);
+      toast.error('Camera or QR scan failed.');
     }
   };
 
@@ -238,6 +252,27 @@ export default function InventoryUpdater() {
           <QrCode size={18} />
           {scanning ? 'Scanning…' : 'Scan QR'}
         </button>
+        <Modal open={qrModalOpen} onClose={() => { setQrModalOpen(false); setCameraActive(false); }} title="Scan QR Code">
+          <div className="flex flex-col gap-4">
+            <button
+              className="btn btn-primary"
+              onClick={startCameraScan}
+              disabled={scanning || !(window as any).BarcodeDetector}
+            >
+              <QrCode size={18} /> Use Camera
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => { setQrModalOpen(false); fileInputRef.current?.click(); }}
+              disabled={scanning}
+            >
+              Upload QR Image
+            </button>
+            {!(window as any).BarcodeDetector && (
+              <div className="text-xs text-red-500">Live camera scan not supported in this browser. Use image upload instead.</div>
+            )}
+          </div>
+        </Modal>
         <input
           type="file"
           accept="image/*"
