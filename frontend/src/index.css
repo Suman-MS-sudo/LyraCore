@@ -85,6 +85,13 @@
 .animate-fade-in       { animation: fadeIn 0.18s ease; }
 .animate-slide-up      { animation: slideUp 0.22s cubic-bezier(0.4,0,0.2,1); }
 
+/* ── QR Scanner scan line ── */
+@keyframes qrScanLine {
+  0%, 100% { top: 4px; opacity: 1; }
+  50%       { top: calc(100% - 4px); opacity: 0.8; }
+}
+.animate-qr-scan { animation: qrScanLine 2s ease-in-out infinite; }
+
 /* ── Safe area padding for mobile notches ── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .safe-top    { padding-top: env(safe-area-inset-top, 0px); }

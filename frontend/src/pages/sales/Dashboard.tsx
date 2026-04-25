@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { TrendingUp, Users, CheckCircle2, Percent, DollarSign, PieChart, Bell, Plus, QrCode } from 'lucide-react';
 import api from '../../utils/api';
 import Modal from '../../components/Modal';
@@ -24,6 +24,7 @@ interface SalesSummary {
 }
 
 export default function SalesDashboard() {
+  const navigate = useNavigate();
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -78,8 +79,10 @@ export default function SalesDashboard() {
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
+          // Do NOT await play() — on iOS Safari the user gesture context is lost
+          // after the async getUserMedia call, causing NotAllowedError which would
+          // be caught below and kill the scanner. autoPlay attr handles playback.
+          videoRef.current.play().catch(() => {});
         }
 
         // Create BarcodeDetector once — much cheaper than per-frame
@@ -118,16 +121,31 @@ export default function SalesDashboard() {
           if (qrRaw) {
             stopCamera();
             setQrModalOpen(false);
-            toast.success(`QR detected: ${qrRaw}`);
-            // TODO: Call API or update count here
+            // If QR encodes one of our own app URLs (e.g. /inventory/use?unit=…)
+            // extract the path and navigate in-app. Otherwise show the raw value.
+            try {
+              const url = new URL(qrRaw);
+              if (url.origin === window.location.origin) {
+                navigate(url.pathname + url.search);
+              } else {
+                toast.success(`QR: ${qrRaw}`);
+              }
+            } catch {
+              // Not a URL — just show it
+              toast.success(`QR: ${qrRaw}`);
+            }
             return;
           }
         }
         if (!cancelled) stopCamera();
-      } catch {
+      } catch (err: any) {
         if (!cancelled) {
           stopCamera();
-          toast.error('Camera access denied or unavailable. Check permissions.');
+          toast.error(
+            err?.name === 'NotAllowedError'
+              ? 'Camera permission denied. Please allow camera access and try again.'
+              : 'Camera unavailable. Make sure the site is loaded over HTTPS.',
+          );
         }
       }
     })();
@@ -181,12 +199,40 @@ export default function SalesDashboard() {
 
       <Modal open={qrModalOpen} onClose={handleCloseQrModal} title="Scan QR Code">
         <div className="flex flex-col items-center gap-4">
-          <video ref={videoRef} style={{ width: '100%', maxWidth: 400, borderRadius: 12, background: '#000' }} autoPlay muted playsInline />
-          {!cameraActive && (
-            <div className="text-xs text-yellow-600 bg-yellow-50 rounded px-2 py-1">Camera not active. Check camera permissions.</div>
-          )}
-          <div className="text-xs text-gray-500">Align QR code in the frame</div>
-          <button className="btn btn-danger mt-2" onClick={handleCloseQrModal}>Cancel</button>
+          {/* ── Viewfinder ── */}
+          <div className="relative w-full overflow-hidden rounded-2xl bg-black" style={{ maxWidth: 320, aspectRatio: '1/1' }}>
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              autoPlay muted playsInline
+            />
+            {/* dark vignette overlay */}
+            <div className="absolute inset-0" style={{ background: 'radial-gradient(circle, transparent 45%, rgba(0,0,0,0.55) 100%)' }} />
+            {/* scanning box */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="relative" style={{ width: '62%', height: '62%' }}>
+                {/* corner brackets */}
+                <span className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-green-400 rounded-tl-md" />
+                <span className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-green-400 rounded-tr-md" />
+                <span className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-green-400 rounded-bl-md" />
+                <span className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-green-400 rounded-br-md" />
+                {/* animated scan line */}
+                <span
+                  className="absolute left-1 right-1 h-0.5 rounded-full bg-green-400 shadow animate-qr-scan"
+                  style={{ boxShadow: '0 0 6px 2px rgba(74,222,128,0.6)' }}
+                />
+              </div>
+            </div>
+            {!cameraActive && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70">
+                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="text-white text-xs">Starting camera…</span>
+              </div>
+            )}
+          </div>
+          <p className="text-sm font-medium text-gray-700">Align QR code in the green frame</p>
+          <p className="text-xs text-gray-400">Camera will detect the code automatically</p>
+          <button className="btn btn-secondary w-full" onClick={handleCloseQrModal}>Cancel</button>
         </div>
       </Modal>
 
