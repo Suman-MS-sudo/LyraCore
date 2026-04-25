@@ -17,8 +17,7 @@ if ! command -v npm &>/dev/null; then
   exit 1
 fi
 
-# Limit Node heap to avoid OOM on low-RAM servers (e2-micro)
-export NODE_OPTIONS="--max-old-space-size=512"
+
 
 echo ">>> Pulling latest code..."
 cd "$APP_DIR"
@@ -34,7 +33,8 @@ npm run migrate
 echo ">>> Rebuilding frontend..."
 cd "$APP_DIR/frontend"
 npm ci --silent
-npm run build
+# Increase heap for frontend build only
+NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 echo ">>> Restarting backend..."
 if pm2 list 2>/dev/null | grep -q lyracore-backend; then
