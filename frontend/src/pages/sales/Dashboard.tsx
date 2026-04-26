@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, Users, CheckCircle2, Percent, DollarSign, PieChart, Bell, Plus, QrCode } from 'lucide-react';
+import { TrendingUp, Users, CheckCircle2, Percent, DollarSign, PieChart, Bell, Plus, QrCode, ArrowLeft } from 'lucide-react';
 import api from '../../utils/api';
-import Modal from '../../components/Modal';
 import jsQR from 'jsqr';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate, minutesSince } from '../../utils/helpers';
@@ -182,7 +181,84 @@ export default function SalesDashboard() {
   ];
 
   return (
-    <div className="space-y-5">
+    <>
+      {/* ── QR Scanner — fullscreen native overlay (no Modal constraints) ── */}
+      {qrModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          {/* Header bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))', background: 'rgba(0,0,0,0.85)' }}>
+            <button
+              onClick={handleCloseQrModal}
+              style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 8, borderRadius: '50%', display: 'flex', alignItems: 'center' }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <span style={{ color: 'white', fontWeight: 700, fontSize: 15, letterSpacing: '0.06em' }}>SCAN QR CODE</span>
+          </div>
+
+          {/* Camera — fills all remaining space */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <video
+              ref={videoRef}
+              onCanPlay={() => setCameraActive(true)}
+              autoPlay
+              muted
+              playsInline
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+
+            {/* box-shadow trick: darkens everything outside the 240×240 scan square */}
+            {cameraActive && (
+              <div
+                style={{
+                  position: 'absolute',
+                  width: 240,
+                  height: 240,
+                  top: '45%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
+                  borderRadius: 4,
+                }}
+              >
+                {/* Corner brackets — red like the reference image */}
+                <span style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTop: '3px solid #ef4444', borderLeft: '3px solid #ef4444', borderRadius: '4px 0 0 0' }} />
+                <span style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTop: '3px solid #ef4444', borderRight: '3px solid #ef4444', borderRadius: '0 4px 0 0' }} />
+                <span style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottom: '3px solid #ef4444', borderLeft: '3px solid #ef4444', borderRadius: '0 0 0 4px' }} />
+                <span style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottom: '3px solid #ef4444', borderRight: '3px solid #ef4444', borderRadius: '0 0 4px 0' }} />
+                {/* Animated scan line */}
+                <span
+                  className="animate-qr-scan"
+                  style={{ position: 'absolute', left: 2, right: 2, height: 2, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 8px 3px rgba(239,68,68,0.7)' }}
+                />
+              </div>
+            )}
+
+            {/* Spinner while camera is starting */}
+            {!cameraActive && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <div className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>Starting camera…</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Allow camera permission if prompted</span>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ background: 'rgba(0,0,0,0.85)', padding: '20px 24px', paddingBottom: 'max(20px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            {cameraActive && <p style={{ color: 'white', fontSize: 14, fontWeight: 600, margin: 0 }}>Scanning…</p>}
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: 0, textAlign: 'center' }}>Align QR code to fill inside the frame</p>
+            <button
+              onClick={handleCloseQrModal}
+              style={{ marginTop: 14, width: '100%', maxWidth: 280, padding: '11px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-5">
       {/* Header */}
       <div className="page-header flex items-center gap-2 justify-between">
         <div className="flex items-center gap-2">
@@ -196,49 +272,6 @@ export default function SalesDashboard() {
           <Plus size={15} /><span className="hidden sm:inline">New Lead</span><span className="sm:hidden">New</span>
         </Link>
       </div>
-
-      <Modal open={qrModalOpen} onClose={handleCloseQrModal} title="Scan QR Code">
-        <div className="flex flex-col items-center gap-4">
-          {/* ── Viewfinder ── */}
-          <div
-            className="relative overflow-hidden rounded-2xl bg-black mx-auto"
-            style={{ width: '100%', maxWidth: 320, height: 300 }}
-          >
-            <video
-              ref={videoRef}
-              onCanPlay={() => setCameraActive(true)}
-              className="absolute inset-0 w-full h-full object-cover"
-              autoPlay muted playsInline
-            />
-            {/* dark vignette overlay */}
-            <div className="absolute inset-0" style={{ background: 'radial-gradient(circle, transparent 45%, rgba(0,0,0,0.55) 100%)' }} />
-            {/* scanning box */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative" style={{ width: '62%', height: '62%' }}>
-                {/* corner brackets */}
-                <span className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-green-400 rounded-tl-md" />
-                <span className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-green-400 rounded-tr-md" />
-                <span className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-green-400 rounded-bl-md" />
-                <span className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-green-400 rounded-br-md" />
-                {/* animated scan line */}
-                <span
-                  className="absolute left-1 right-1 h-0.5 rounded-full bg-green-400 shadow animate-qr-scan"
-                  style={{ boxShadow: '0 0 6px 2px rgba(74,222,128,0.6)' }}
-                />
-              </div>
-            </div>
-            {!cameraActive && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="text-white text-xs">Starting camera…</span>
-              </div>
-            )}
-          </div>
-          <p className="text-sm font-medium text-gray-700">Align QR code in the green frame</p>
-          <p className="text-xs text-gray-400">Camera will detect the code automatically</p>
-          <button className="btn btn-secondary w-full" onClick={handleCloseQrModal}>Cancel</button>
-        </div>
-      </Modal>
 
       {/* ── 🚨 Hot Leads — new leads not contacted within 5 min ── */}
       {data.hotLeads?.length > 0 && (
@@ -425,5 +458,6 @@ export default function SalesDashboard() {
         </div>
       </div>
     </div>
+    </>
   );
 }
