@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import Modal from '../../components/Modal';
 import { useSearchParams } from 'react-router-dom';
-import { Search, QrCode, Printer, Plus, Minus, Hash, RefreshCw } from 'lucide-react';
+import { Search, QrCode, Printer, Plus, Minus, Hash, RefreshCw, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { printStickerSheet } from '../../utils/printStickers';
 import api from '../../utils/api';
@@ -41,8 +40,11 @@ export default function InventoryUpdater() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
-  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrOverlayOpen, setQrOverlayOpen] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const shouldScanRef = useRef(false);
 
   useEffect(() => {
     api.get('/inventory').then(r => setComponents(r.data));
@@ -125,82 +127,101 @@ export default function InventoryUpdater() {
 
   const previewQty = preview();
 
-  // Scan QR handler: open modal to choose method
-  const handleScanQR = () => {
-    setQrModalOpen(true);
+  const stopCamera = () => {
+    shouldScanRef.current = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setScanning(false);
+    setCameraActive(false);
   };
 
-  // Camera scan logic (real-time, with fallback)
-  const startCameraScan = async () => {
-    setQrModalOpen(false);
-    setScanning(true);
-    setCameraActive(true);
-    let stream: MediaStream | null = null;
-    let video: HTMLVideoElement | null = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      video = document.createElement('video');
-      video.srcObject = stream;
-      video.setAttribute('playsinline', 'true');
-      await video.play();
-      let found = false;
-      while (!found && cameraActive) {
-        await new Promise(r => setTimeout(r, 200));
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
-        let qrRaw: string | null = null;
-        // Try BarcodeDetector if available
-        if ('BarcodeDetector' in window) {
-          try {
-            // @ts-ignore
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-            // @ts-ignore
-            const barcodes = await detector.detect(canvas);
-            if (barcodes.length > 0) {
-              qrRaw = barcodes[0].rawValue;
-            }
-          } catch {}
-        }
-        // Fallback to jsQR if needed
-        if (!qrRaw) {
-          try {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height);
-              if (code && code.data) {
-                qrRaw = code.data;
-              }
-            }
-          } catch {}
-        }
-        if (qrRaw) {
-          found = true;
-          stream.getTracks().forEach(t => t.stop());
-          video.remove();
-          await processQR(qrRaw);
-          setScanning(false);
-          setCameraActive(false);
-          return;
-        }
-      }
-      // If modal closed, stop camera
-      if (!found) {
-        stream.getTracks().forEach(t => t.stop());
-        video.remove();
-        setScanning(false);
-        setCameraActive(false);
-      }
-    } catch (e) {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      if (video) video.remove();
-      setScanning(false);
-      setCameraActive(false);
-      toast.error('Camera or QR scan failed.');
+  const handleScanQR = () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('Camera not available. HTTPS is required for camera access.');
+      return;
     }
+    shouldScanRef.current = true;
+    setQrOverlayOpen(true);
+    setScanning(true);
+    setCameraActive(false);
   };
+
+  const handleCloseQrOverlay = () => {
+    setQrOverlayOpen(false);
+    stopCamera();
+  };
+
+  // Camera init — runs after React renders the overlay so videoRef.current is set
+  useEffect(() => {
+    if (!qrOverlayOpen) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+        // @ts-ignore
+        const barcodeDetector = ('BarcodeDetector' in window)
+          // @ts-ignore
+          ? (() => { try { return new window.BarcodeDetector({ formats: ['qr_code'] }); } catch { return null; } })()
+          : null;
+        while (shouldScanRef.current && !cancelled) {
+          await new Promise(r => setTimeout(r, 200));
+          if (!shouldScanRef.current || cancelled) break;
+          if (!videoRef.current || videoRef.current.videoWidth === 0) continue;
+          const canvas = document.createElement('canvas');
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          canvas.getContext('2d')!.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          let qrRaw: string | null = null;
+          if (barcodeDetector) {
+            try {
+              // @ts-ignore
+              const barcodes = await barcodeDetector.detect(canvas);
+              if (barcodes.length > 0) qrRaw = barcodes[0].rawValue;
+            } catch {}
+          }
+          if (!qrRaw) {
+            try {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code?.data) qrRaw = code.data;
+              }
+            } catch {}
+          }
+          if (qrRaw) {
+            stopCamera();
+            setQrOverlayOpen(false);
+            await processQR(qrRaw);
+            return;
+          }
+        }
+        if (!cancelled) stopCamera();
+      } catch (err: any) {
+        if (!cancelled) {
+          stopCamera();
+          toast.error(
+            err?.name === 'NotAllowedError'
+              ? 'Camera permission denied. Please allow camera access and try again.'
+              : 'Camera unavailable. Make sure the site is loaded over HTTPS.',
+          );
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [qrOverlayOpen]);
+
+  useEffect(() => () => stopCamera(), []);
 
   // Fallback: handle image upload as a real-time QR reader
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,7 +248,6 @@ export default function InventoryUpdater() {
       qr = await decodeQRFromImage(img);
     }
     if (qr) {
-      toast.success(`QR detected: ${qr}`); // Debug: show raw QR value
       await processQR(qr);
       return;
     }
@@ -263,6 +283,53 @@ export default function InventoryUpdater() {
   };
 
   return (
+    <>
+      {/* ── QR Scanner fullscreen overlay ── */}
+      {qrOverlayOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))', background: 'rgba(0,0,0,0.85)' }}>
+            <button onClick={handleCloseQrOverlay} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 8, borderRadius: '50%', display: 'flex', alignItems: 'center' }}>
+              <ArrowLeft size={22} />
+            </button>
+            <span style={{ color: 'white', fontWeight: 700, fontSize: 15, letterSpacing: '0.06em' }}>SCAN QR CODE</span>
+          </div>
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <video ref={videoRef} onCanPlay={() => setCameraActive(true)} autoPlay muted playsInline
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            {cameraActive && (
+              <div style={{ position: 'absolute', width: 240, height: 240, top: '45%', left: '50%', transform: 'translate(-50%, -50%)', boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)', borderRadius: 4 }}>
+                <span style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTop: '3px solid #ef4444', borderLeft: '3px solid #ef4444', borderRadius: '4px 0 0 0' }} />
+                <span style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTop: '3px solid #ef4444', borderRight: '3px solid #ef4444', borderRadius: '0 4px 0 0' }} />
+                <span style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottom: '3px solid #ef4444', borderLeft: '3px solid #ef4444', borderRadius: '0 0 0 4px' }} />
+                <span style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottom: '3px solid #ef4444', borderRight: '3px solid #ef4444', borderRadius: '0 0 4px 0' }} />
+                <span className="animate-qr-scan" style={{ position: 'absolute', left: 2, right: 2, height: 2, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 8px 3px rgba(239,68,68,0.7)' }} />
+              </div>
+            )}
+            {!cameraActive && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <div className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>Starting camera…</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Allow camera permission if prompted</span>
+              </div>
+            )}
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.85)', padding: '20px 24px', paddingBottom: 'max(20px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            {cameraActive && <p style={{ color: 'white', fontSize: 14, fontWeight: 600, margin: 0 }}>Scanning…</p>}
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: 0, textAlign: 'center' }}>Align QR code to fill inside the frame</p>
+            <button onClick={() => fileInputRef.current?.click()}
+              style={{ width: '100%', maxWidth: 280, padding: '9px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
+              Upload QR Image instead
+            </button>
+            <button onClick={handleCloseQrOverlay}
+              style={{ width: '100%', maxWidth: 280, padding: '11px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
+
     <div className="space-y-5">
       {/* Header */}
       <div className="page-header flex items-center justify-between gap-2">
@@ -270,39 +337,10 @@ export default function InventoryUpdater() {
           <h1 className="page-title">Inventory Update</h1>
           <p className="text-sm text-gray-500 mt-0.5">Select a component, update stock count — scan QR stickers on mobile to take out units</p>
         </div>
-        <button
-          className="btn btn-secondary flex items-center gap-2"
-          onClick={handleScanQR}
-          disabled={scanning}
-        >
+        <button className="btn btn-secondary flex items-center gap-2" onClick={handleScanQR} disabled={scanning}>
           <QrCode size={18} />
           {scanning ? 'Scanning…' : 'Scan QR'}
         </button>
-        <Modal open={qrModalOpen} onClose={() => { setQrModalOpen(false); setCameraActive(false); }} title="Scan QR Code">
-          <div className="flex flex-col gap-4">
-            <button
-              className="btn btn-primary"
-              onClick={startCameraScan}
-              disabled={scanning}
-            >
-              <QrCode size={18} /> Use Camera
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => { setQrModalOpen(false); fileInputRef.current?.click(); }}
-              disabled={scanning}
-            >
-              Upload QR Image
-            </button>
-          </div>
-        </Modal>
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -532,5 +570,6 @@ export default function InventoryUpdater() {
         </div>
       </div>
     </div>
+    </>
   );
 }
