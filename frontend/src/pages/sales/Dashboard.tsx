@@ -57,7 +57,7 @@ export default function SalesDashboard() {
     shouldScanRef.current = true;
     setQrModalOpen(true);
     setScanning(true);
-    setCameraActive(true);
+    setCameraActive(false); // spinner shows; onCanPlay on the <video> sets this true
   };
 
   // Cancel/close modal and stop camera
@@ -200,9 +200,13 @@ export default function SalesDashboard() {
       <Modal open={qrModalOpen} onClose={handleCloseQrModal} title="Scan QR Code">
         <div className="flex flex-col items-center gap-4">
           {/* ── Viewfinder ── */}
-          <div className="relative w-full overflow-hidden rounded-2xl bg-black" style={{ maxWidth: 320, aspectRatio: '1/1' }}>
+          <div
+            className="relative overflow-hidden rounded-2xl bg-black mx-auto"
+            style={{ width: '100%', maxWidth: 320, height: 300 }}
+          >
             <video
               ref={videoRef}
+              onCanPlay={() => setCameraActive(true)}
               className="absolute inset-0 w-full h-full object-cover"
               autoPlay muted playsInline
             />
