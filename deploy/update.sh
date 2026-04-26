@@ -40,6 +40,12 @@ npm ci --silent
 # Increase heap for frontend build only
 NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
+echo ">>> Updating nginx config..."
+sudo cp "$APP_DIR/deploy/nginx-lyracore.conf" /etc/nginx/sites-available/lyracore
+sudo ln -sf /etc/nginx/sites-available/lyracore /etc/nginx/sites-enabled/lyracore
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+
 echo ">>> Restarting backend..."
 if pm2 list 2>/dev/null | grep -q lyracore-backend; then
   pm2 restart lyracore-backend

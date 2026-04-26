@@ -28,7 +28,7 @@ const PORT = process.env.PORT || 5000;
 initializeDatabase();
 
 // Middleware
-app.use(cors({ origin: ['https://localhost', 'https://localhost:443', 'http://localhost:3000', 'http://localhost:5173'], credentials: true }));
+app.use(cors({ origin: ['https://localhost', 'https://localhost:443', 'http://localhost:3000', 'http://localhost:5173', 'https://lyracore.lyraenterprise.co.in'], credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
